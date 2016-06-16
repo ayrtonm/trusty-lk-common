@@ -164,6 +164,7 @@ void *paddr_to_kvaddr(paddr_t pa);
 
 /* virtual to physical */
 paddr_t kvaddr_to_paddr(void *va);
+static inline paddr_t vaddr_to_paddr(void *ptr) { return kvaddr_to_paddr(ptr); }
 
 /* virtual allocator */
 typedef struct vmm_aspace {
