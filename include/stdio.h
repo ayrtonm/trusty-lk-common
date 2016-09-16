@@ -71,7 +71,9 @@ int getchar(void);
 int fprintf(FILE *fp, const char *fmt, ...) __PRINTFLIKE(2, 3);
 int vfprintf(FILE *fp, const char *fmt, va_list ap);
 
+// sccanf is not implemented.
+int sscanf(const char* str, const char* format, ...);
+
 __END_CDECLS
 
 #endif
-
