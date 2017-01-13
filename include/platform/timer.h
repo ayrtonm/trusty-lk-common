@@ -34,5 +34,12 @@ status_t platform_set_oneshot_timer (platform_timer_callback callback, void *arg
 void     platform_stop_timer(void);
 #endif
 
+struct platform_timer_state {
+	uint64_t tval;  /* timer counter */
+	uint64_t cval;  /* timer comparator */
+};
+
+void platform_export_timer_state(struct platform_timer_state *ts, bool raw);
+
 #endif
 

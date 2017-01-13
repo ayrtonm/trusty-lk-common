@@ -129,6 +129,7 @@ static int timer_irq;
 struct fp_32_64 cntpct_per_ms;
 struct fp_32_64 ms_per_cntpct;
 struct fp_32_64 us_per_cntpct;
+struct fp_32_64 ns_per_cntpct;
 
 static uint64_t lk_time_to_cntpct(lk_time_t lk_time)
 {
@@ -166,6 +167,15 @@ static void write_cntp_ctl(uint32_t cntp_ctl)
 {
 	LTRACEF_LEVEL(3, "cntp_ctl: 0x%x %x\n", cntp_ctl, read_cntp_ctl());
 	WRITE_TIMER_REG32(TIMER_REG_CTL, cntp_ctl);
+}
+
+static uint64_t read_cntp_cval(void)
+{
+	uint64_t cval;
+
+	cval = READ_TIMER_REG64(TIMER_REG_CVAL);
+	LTRACEF_LEVEL(3, "cntp cval: 0x%016llx, %llu\n", cval, cval);
+	return cval;
 }
 
 static void write_cntp_cval(uint64_t cntp_cval)
@@ -314,9 +324,11 @@ static void arm_generic_timer_init_conversion_factors(uint32_t cntfrq)
 	fp_32_64_div_32_32(&cntpct_per_ms, cntfrq, 1000);
 	fp_32_64_div_32_32(&ms_per_cntpct, 1000, cntfrq);
 	fp_32_64_div_32_32(&us_per_cntpct, 1000 * 1000, cntfrq);
+	fp_32_64_div_32_32(&ns_per_cntpct, 1000 * 1000 * 1000, cntfrq);
 	LTRACEF("cntpct_per_ms: %08x.%08x%08x\n", cntpct_per_ms.l0, cntpct_per_ms.l32, cntpct_per_ms.l64);
 	LTRACEF("ms_per_cntpct: %08x.%08x%08x\n", ms_per_cntpct.l0, ms_per_cntpct.l32, ms_per_cntpct.l64);
 	LTRACEF("us_per_cntpct: %08x.%08x%08x\n", us_per_cntpct.l0, us_per_cntpct.l32, us_per_cntpct.l64);
+	LTRACEF("ns_per_cntpct: %08x.%08x%08x\n", ns_per_cntpct.l0, ns_per_cntpct.l32, ns_per_cntpct.l64);
 }
 
 void arm_generic_timer_init(int irq, uint32_t freq_override)
@@ -365,11 +377,49 @@ LK_INIT_HOOK_FLAGS(arm_generic_timer_init_secondary_cpu,
 		   arm_generic_timer_init_secondary_cpu,
 		   LK_INIT_LEVEL_THREADING - 1, LK_INIT_FLAG_SECONDARY_CPUS);
 
+
+static struct platform_timer_state saved_state[SMP_MAX_CPUS];
+
+void platform_export_timer_state(struct platform_timer_state *ts, bool raw)
+{
+	ASSERT(ts);
+
+	uint32_t ctl = read_cntp_ctl();
+	if (ctl & 1) {
+		/* timer is set */
+		if (raw) {
+			ts->tval = read_cntpct();
+			ts->cval = read_cntp_cval();
+		} else {
+			ts->tval = u64_mul_u64_fp32_64(read_cntpct(), ns_per_cntpct);
+			ts->cval = u64_mul_u64_fp32_64(read_cntp_cval(), ns_per_cntpct);
+		}
+	} else {
+		/* timer is not set */
+		ts->tval = 0;
+		ts->cval = 0;
+	}
+}
+
+static void arm_generic_timer_suspend_cpu(uint level)
+{
+	unsigned int cpu = arch_curr_cpu_num();
+	platform_export_timer_state(&saved_state[cpu], true);
+}
+
+LK_INIT_HOOK_FLAGS(arm_generic_timer_suspend_cpu, arm_generic_timer_suspend_cpu,
+		LK_INIT_LEVEL_PLATFORM, LK_INIT_FLAG_CPU_SUSPEND);
+
 static void arm_generic_timer_resume_cpu(uint level)
 {
-	/* Always trigger a timer interrupt on each cpu for now */
-	write_cntp_tval(0);
-	write_cntp_ctl(1);
+	unsigned int cpu = arch_curr_cpu_num();
+	struct platform_timer_state *ts = &saved_state[cpu];
+
+	if (ts->tval) {
+		/* need to restart timer */
+		write_cntp_cval(ts->cval);
+		write_cntp_ctl(1);
+	}
 }
 
 LK_INIT_HOOK_FLAGS(arm_generic_timer_resume_cpu, arm_generic_timer_resume_cpu,
