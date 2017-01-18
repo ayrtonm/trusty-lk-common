@@ -127,7 +127,9 @@ FUNCTION(arch_disable_cache)
 .Ldcache_already_disabled:
 	// make sure all of the caches are invalidated
 	// NOTE: trashes a bunch of registers, can't be spilling stuff to the stack
+#if !ARM_WITH_NO_DCACHE_INVALIDATE_ON_BOOT
 	bl		invalidate_cache_v7
+#endif
 
 .Ldcache_disable_L2:
 
@@ -172,7 +174,9 @@ FUNCTION(arch_enable_cache)
 
 	// invalidate L1 and L2
 	// NOTE: trashes a bunch of registers, can't be spilling stuff to the stack
+#if !ARM_WITH_NO_DCACHE_INVALIDATE_ON_BOOT
 	bl		invalidate_cache_v7
+#endif
 
 #if ARM_WITH_L2
 	// enable the L2, if present
