@@ -163,7 +163,7 @@
  * inner/outer (IRGN/RGN): write-back + write-allocate
  * (select inner sharable on smp)
  */
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
 #define MMU_TTBRx_SHARABLE_FLAGS (MMU_MEMORY_TTBR_S | MMU_MEMORY_TTBR_NOS)
 #else
 #define MMU_TTBRx_SHARABLE_FLAGS (0)
@@ -174,7 +174,7 @@
      MMU_TTBRx_SHARABLE_FLAGS)
 
 /* Section mapping, TEX[2:0]=001, CB=11, S=1, AP[2:0]=001 */
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
 #define MMU_KERNEL_L1_PTE_FLAGS \
     (MMU_MEMORY_L1_DESCRIPTOR_SECTION | \
      MMU_MEMORY_L1_TYPE_NORMAL_WRITE_BACK_ALLOCATE | \
@@ -215,7 +215,7 @@ status_t arm_vtop(addr_t va, addr_t *pa);
 /* tlb routines */
 
 static inline void arm_after_invalidate_tlb_barrier(void) {
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
     arm_write_bpiallis(0);
 #else
     arm_write_bpiall(0);
@@ -225,7 +225,7 @@ static inline void arm_after_invalidate_tlb_barrier(void) {
 }
 
 static inline void arm_invalidate_tlb_global_no_barrier(void) {
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
     arm_write_tlbiallis(0);
 #else
     arm_write_tlbiall(0);
@@ -239,7 +239,7 @@ static inline void arm_invalidate_tlb_global(void) {
 }
 
 static inline void arm_invalidate_tlb_mva_no_barrier(vaddr_t va) {
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
     arm_write_tlbimvaais(va & 0xfffff000);
 #else
     arm_write_tlbimvaa(va & 0xfffff000);
@@ -254,7 +254,7 @@ static inline void arm_invalidate_tlb_mva(vaddr_t va) {
 
 
 static inline void arm_invalidate_tlb_asid_no_barrier(uint8_t asid) {
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
     arm_write_tlbiasidis(asid);
 #else
     arm_write_tlbiasid(asid);
@@ -268,7 +268,7 @@ static inline void arm_invalidate_tlb_asid(uint8_t asid) {
 }
 
 static inline void arm_invalidate_tlb_mva_asid_no_barrier(vaddr_t va, uint8_t asid) {
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
     arm_write_tlbimvais((va & 0xfffff000) | asid);
 #else
     arm_write_tlbimva((va & 0xfffff000) | asid);

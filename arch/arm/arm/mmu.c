@@ -55,7 +55,7 @@ static uint32_t mmu_flags_to_l1_arch_flags(uint flags)
     switch (flags & ARCH_MMU_FLAG_CACHE_MASK) {
         case ARCH_MMU_FLAG_CACHED:
             arch_flags |= MMU_MEMORY_L1_TYPE_NORMAL_WRITE_BACK_ALLOCATE;
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
             arch_flags |= MMU_MEMORY_L1_SECTION_SHAREABLE;
 #endif
             break;
@@ -103,11 +103,11 @@ static uint32_t mmu_flags_to_l2_arch_flags_small_page(uint flags)
     uint32_t arch_flags = 0;
     switch (flags & ARCH_MMU_FLAG_CACHE_MASK) {
         case ARCH_MMU_FLAG_CACHED:
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
             arch_flags |= MMU_MEMORY_L2_SHAREABLE;
 #endif
             arch_flags |= MMU_MEMORY_L2_TYPE_NORMAL_WRITE_BACK_ALLOCATE;
-#if WITH_SMP
+#if WITH_SMP | WITH_SHAREABLE_CACHE
             arch_flags |= MMU_MEMORY_L2_SHAREABLE;
 #endif
             break;
