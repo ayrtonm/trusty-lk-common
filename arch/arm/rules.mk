@@ -334,5 +334,6 @@ $(OUTELF).stack: $(OUTELF).lst
 	$(NOECHO)$(LOCAL_DIR)/stackusage < $< | sort -n -k 1 -r > $@
 
 EXTRA_BUILDDEPS += $(OUTELF).stack
+GENERATED += $(OUTELF).stack
 
 include make/module.mk
