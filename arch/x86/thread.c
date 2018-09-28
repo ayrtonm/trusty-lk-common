@@ -132,38 +132,19 @@ void arch_context_switch(thread_t *oldthread, thread_t *newthread)
         :
         : "d" (&oldthread->arch.sp), "a" (newthread->arch.sp)
     );
-
-    /*__asm__ __volatile__ (
-        "pushf              \n\t"
-        "pushl %%cs         \n\t"
-        "pushl $1f          \n\t"
-        "pushl %%gs         \n\t"
-        "pushl %%fs         \n\t"
-        "pushl %%es         \n\t"
-        "pushl %%ds         \n\t"
-        "pusha              \n\t"
-        "movl %%esp,(%%edx) \n\t"
-        "movl %%eax,%%esp   \n\t"
-        "popa               \n\t"
-        "popl %%ds          \n\t"
-        "popl %%es          \n\t"
-        "popl %%fs          \n\t"
-        "popl %%gs          \n\t"
-        "iret               \n\t"
-        "1: "
-        :
-        : "d" (&oldthread->arch.sp), "a" (newthread->arch.sp)
-    );*/
 }
-#endif
 
-#if ARCH_X86_64
+#elif ARCH_X86_64
 
 void arch_context_switch(thread_t *oldthread, thread_t *newthread)
 {
+    uint64_t stack_top = (uint64_t)newthread->stack + newthread->stack_size;
+    tss_t *tss_base = get_tss_base();
 #if X86_WITH_FPU
     fpu_context_switch(oldthread, newthread);
 #endif
+    tss_base->rsp0 = stack_top;
+    write_msr(SYSENTER_ESP_MSR, stack_top);
 
     /* Switch fs base which used to store tls */
     oldthread->arch.fs_base = read_msr(X86_MSR_FS_BASE);
