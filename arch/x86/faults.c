@@ -40,6 +40,29 @@
 #define INT_MF              0x10
 #define INT_XM              0x13
 
+struct fault_handler_table_entry {
+    vaddr_t rip;
+    vaddr_t fault_handler;
+};
+
+extern struct fault_handler_table_entry __fault_handler_table_start[];
+extern struct fault_handler_table_entry __fault_handler_table_end[];
+
+static bool check_fault_handler_table(x86_iframe_t *frame)
+{
+    struct fault_handler_table_entry *fault_handler;
+
+    for (fault_handler = __fault_handler_table_start;
+            fault_handler < __fault_handler_table_end;
+            fault_handler++) {
+        if (fault_handler->rip == frame->ip) {
+            frame->ip = fault_handler->fault_handler;
+            return true;
+        }
+    }
+    return false;
+}
+
 extern enum handler_return platform_irq(x86_iframe_t *frame);
 
 static void dump_fault_frame(x86_iframe_t *frame)
@@ -117,23 +140,19 @@ void x86_pfe_handler(x86_iframe_t *frame)
     thread_t *current_thread;
     error_code = frame->err_code;
 
+    if (check_fault_handler_table(frame)) {
+        return;
+    }
+
 #ifdef PAGE_FAULT_DEBUG_INFO
-    addr_t v_addr, ssp, esp, ip, rip;
-    v_addr = x86_get_cr2();
-
-    ssp = frame->user_ss & X86_8BYTE_MASK;
-    esp = frame->user_sp;
-    ip  = frame->cs & X86_8BYTE_MASK;
-    rip = frame->ip;
-
     dprintf(CRITICAL, "<PAGE FAULT> Instruction Pointer   = 0x%x:0x%x\n",
-            (unsigned int)ip,
-            (unsigned int)rip);
+            (unsigned int)frame->cs & X86_8BYTE_MASK,
+            (unsigned int)frame->ip);
     dprintf(CRITICAL, "<PAGE FAULT> Stack Pointer         = 0x%x:0x%x\n",
-            (unsigned int)ssp,
-            (unsigned int)esp);
+            (unsigned int)frame->user_ss & X86_8BYTE_MASK,
+            (unsigned int)frame->user_sp);
     dprintf(CRITICAL, "<PAGE FAULT> Fault Linear Address = 0x%x\n",
-            (unsigned int)v_addr);
+            (unsigned int)x86_get_cr2());
     dprintf(CRITICAL, "<PAGE FAULT> Error Code Value      = 0x%x\n",
             error_code);
     dprintf(CRITICAL, "<PAGE FAULT> Error Code Type = %s %s %s%s, %s\n",
