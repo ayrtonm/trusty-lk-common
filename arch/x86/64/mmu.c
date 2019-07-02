@@ -365,6 +365,11 @@ static void update_pt_entry(vaddr_t vaddr, paddr_t paddr,  uint64_t pde, arch_fl
     pt_table[pt_index] |= flags | X86_MMU_PG_P;
     if (!(flags & X86_MMU_PG_U))
         pt_table[pt_index] |= X86_MMU_PG_G; /* setting global flag for kernel pages */
+
+    if (flags & X86_MMU_PG_NX)
+        pt_table[pt_index] |= X86_MMU_PG_NX;
+    else
+        pt_table[pt_index] &= ~X86_MMU_PG_NX;
 }
 
 static void update_pd_entry(vaddr_t vaddr, uint64_t pdpe, map_addr_t m, arch_flags_t flags)
