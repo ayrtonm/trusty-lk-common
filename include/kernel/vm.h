@@ -458,6 +458,18 @@ status_t vmm_alloc_no_physical(vmm_aspace_t *aspace, const char *name, size_t si
 status_t vmm_alloc(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
 
 /**
+ * vmm_find_region() - find a region in which specified virtual address resides
+ * @aspace: address space to look for @vaddr in
+ * @vaddr:  base virtual address to look for
+ *
+ * Must be called after vmm_lock_aspace(). The returned pointer is only valid
+ * until vmm_unlock_aspace() is called.
+ *
+ * Return: region struct or %NULL if @vaddr is not mapped in @aspace
+ */
+vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace, vaddr_t vaddr);
+
+/**
  * vmm_get_obj() - Acquire a slice from a chunk of an &struct aspace
  * @aspace: address space to extract from
  * @vaddr:  base virtual address the slice should start at

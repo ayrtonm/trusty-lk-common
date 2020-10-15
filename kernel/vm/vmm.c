@@ -1248,12 +1248,17 @@ status_t vmm_alloc(vmm_aspace_t* aspace,
                          arch_mmu_flags, 0, 0);
 }
 
-static vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
+vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
                                      vaddr_t vaddr) {
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(is_mutex_held(&vmm_lock));
 
     if (!aspace)
         return NULL;
+
+    if (!is_mutex_held(&vmm_lock)) {
+        return NULL;
+    }
 
     return vmm_find_region_in_bst(&aspace->regions, vaddr, PAGE_SIZE);
 }
