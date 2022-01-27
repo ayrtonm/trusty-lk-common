@@ -22,6 +22,7 @@
 
 MODULES += \
 	$(GET_LOCAL_DIR)/scstest \
+	$(GET_LOCAL_DIR)/threadtest \
 	$(GET_LOCAL_DIR)/timertest \
 	$(GET_LOCAL_DIR)/pincputest \
 
