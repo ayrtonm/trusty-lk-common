@@ -51,32 +51,49 @@ void arm64_context_switch(vaddr_t *old_sp, vaddr_t new_sp);
 
 /* exception handling */
 struct arm64_iframe_long {
-    uint64_t r[32];
-    uint64_t elr;
+    uint64_t r[29];
+    uint64_t lr;
+    uint64_t sp;
     uint64_t spsr;
+    uint64_t fp;
+    uint64_t elr;
 };
 
 struct arm64_iframe_short {
-    uint64_t r[20];
-    uint64_t elr;
+    uint64_t r[19];
+    uint64_t lr;
+    uint64_t sp;
     uint64_t spsr;
+    uint64_t fp;
+    uint64_t elr;
 };
 
 struct thread;
-extern void arm64_exception_base(void);
+
+/*
+ * This declaration is made to avoid issues with CFI while setting
+ * vector base, with CFI enabled VBAR_EL1 was set wrong, so instead
+ * of jumping to the correct exception entrypoint it was jumping into
+ * the middle of an unrelated function
+ */
+extern uint32_t arm64_exception_base[];
+
 void arm64_el3_to_el1(void);
 void arm64_fpu_exception(struct arm64_iframe_long *iframe);
 void arm64_fpu_save_state(struct thread *thread);
 
 static inline void arm64_fpu_pre_context_switch(struct thread *thread)
 {
-    uint32_t cpacr = ARM64_READ_SYSREG(cpacr_el1);
+    uint64_t cpacr = ARM64_READ_SYSREG(cpacr_el1);
     if ((cpacr >> 20) & 3) {
         arm64_fpu_save_state(thread);
-        cpacr &= ~(3 << 20);
+        cpacr &= ~(3U << 20);
         ARM64_WRITE_SYSREG(cpacr_el1, cpacr);
     }
 }
+
+/* overridable syscall handler */
+void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit);
 
 __END_CDECLS
 

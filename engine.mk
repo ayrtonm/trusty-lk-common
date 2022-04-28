@@ -24,12 +24,16 @@ ifneq ($(project-name),)
 ifneq ($(strip $(foreach d,$(LKINC),$(wildcard $(d)/project/$(project-name).mk))),)
 do-nothing := 1
 $(MAKECMDGOALS) _all: make-make
+	@:
 make-make:
 	@PROJECT=$(project-name) $(MAKE) -rR -f $(LOCAL_MAKEFILE) $(filter-out $(project-name), $(MAKECMDGOALS))
 
 .PHONY: make-make
 endif
 endif
+
+# some additional rules to print some help
+include make/help.mk
 
 ifeq ($(do-nothing),)
 
@@ -38,29 +42,63 @@ ifeq ($(PROJECT),)
 ifneq ($(DEFAULT_PROJECT),)
 PROJECT := $(DEFAULT_PROJECT)
 else
-$(error No project specified.  Use "make projectname" or put "PROJECT := projectname" in local.mk)
+$(error No project specified. Use 'make list' for a list of projects or 'make help' for additional help)
 endif
 endif
 
+TEST_BUILD ?=
+
 DEBUG ?= 2
+
+# LOG_LEVEL_KERNEL controls LK_LOGLEVEL
+# when LOG_LEVEL_KERNEL = 1, dprintf INFO level is enabled
+# when LOG_LEVEL_KERNEL = 2, dprintf SPEW level is enabled
+LOG_LEVEL_KERNEL ?= $(DEBUG)
+
+# LOG_LEVEL_USER controls TLOG_LVL_DEFAULT
+# when LOG_LEVEL_USER = 2 TLOG_LVL_DEFAULT = 4 (info)
+# when LOG_LEVEL_USER = 3 TLOG_LVL_DEFAULT = 5 (debug)
+LOG_LEVEL_USER ?= $(DEBUG)
 
 BUILDDIR := $(BUILDROOT)/build-$(PROJECT)
 OUTBIN := $(BUILDDIR)/lk.bin
 OUTELF := $(BUILDDIR)/lk.elf
 CONFIGHEADER := $(BUILDDIR)/config.h
 
-GLOBAL_INCLUDES := $(BUILDDIR) $(addsuffix /include,$(LKINC))
+# Eliminate /usr/local/include and /usr/include to build kernel hermetically
+GLOBAL_KERNEL_COMPILEFLAGS += --sysroot=fake_sysroot
+GLOBAL_KERNEL_INCLUDES := $(addsuffix /include,$(LKINC))
+# For backwards compatibility.
+GLOBAL_KERNEL_INCLUDES += $(addsuffix /include/uapi/uapi,$(LKINC)) $(addsuffix /include/shared/lk,$(LKINC))
+GLOBAL_UAPI_INCLUDES := $(addsuffix /include/uapi,$(LKINC))
+GLOBAL_SHARED_INCLUDES := $(addsuffix /include/shared,$(LKINC))
+GLOBAL_USER_INCLUDES := $(addsuffix /include/user,$(LKINC))
+GLOBAL_INCLUDES := $(BUILDDIR) $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_KERNEL_INCLUDES)
 GLOBAL_OPTFLAGS ?= $(ARCH_OPTFLAGS)
-GLOBAL_COMPILEFLAGS := -g -fno-builtin -finline -include $(CONFIGHEADER)
-GLOBAL_COMPILEFLAGS += -W -Wall -Wno-multichar -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Werror=return-type
-GLOBAL_CFLAGS := --std=gnu99 -Werror-implicit-function-declaration -Wstrict-prototypes -Wwrite-strings
-#GLOBAL_CFLAGS += -Werror
-GLOBAL_CPPFLAGS := -fno-exceptions -fno-rtti -fno-threadsafe-statics
+GLOBAL_SHARED_COMPILEFLAGS := -g -finline -include $(CONFIGHEADER)
+GLOBAL_SHARED_COMPILEFLAGS += -Werror -Wall -Wsign-compare -Wno-multichar -Wno-unused-function -Wno-unused-label
+GLOBAL_SHARED_COMPILEFLAGS += -fno-short-enums -fno-common
+GLOBAL_SHARED_COMPILEFLAGS += -fno-omit-frame-pointer
+GLOBAL_SHARED_CFLAGS := --std=c17 -Wstrict-prototypes -Wwrite-strings
+GLOBAL_SHARED_CPPFLAGS := --std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics
+# c99 array designators are not part of C++, but they are convenient and help avoid errors.
+GLOBAL_SHARED_CPPFLAGS += -Wno-c99-designator
 #GLOBAL_CPPFLAGS += -Weffc++
-GLOBAL_ASMFLAGS := -DASSEMBLY
+GLOBAL_SHARED_ASMFLAGS := -DASSEMBLY
 GLOBAL_LDFLAGS :=
 
-GLOBAL_LDFLAGS += $(addprefix -L,$(LKINC))
+GLOBAL_KERNEL_LDFLAGS += $(addprefix -L,$(LKINC))
+
+GLOBAL_LTO_COMPILEFLAGS += -fvisibility=hidden -flto=thin
+
+# Rust flags, based on the flags used in AOSP
+GLOBAL_SHARED_RUSTFLAGS := -C codegen-units=1 -C debuginfo=2 -C opt-level=3 -C relocation-model=pic
+GLOBAL_SHARED_RUSTFLAGS += -C overflow-checks=on
+# Use v0 mangling to distinguish from C++ symbols
+GLOBAL_SHARED_RUSTFLAGS += -C symbol-mangling-version=v0
+GLOBAL_SHARED_RUSTFLAGS += -C panic=abort -Z link-native-libraries=no
+GLOBAL_SHARED_RUSTFLAGS += -Z panic_abort_tests
+GLOBAL_SHARED_RUSTFLAGS += --deny warnings
 
 # Architecture specific compile flags
 ARCH_COMPILEFLAGS :=
@@ -69,13 +107,16 @@ ARCH_CPPFLAGS :=
 ARCH_ASMFLAGS :=
 
 # top level rule
-all:: $(OUTBIN) $(OUTELF).lst $(OUTELF).debug.lst $(OUTELF).sym $(OUTELF).sym.sorted $(OUTELF).size $(OUTELF).dump
+all:: $(OUTBIN) $(OUTELF).sym $(OUTELF).sym.sorted $(OUTELF).size $(OUTELF).dump $(BUILDDIR)/srcfiles.txt $(BUILDDIR)/include_paths.txt
 
 # master module object list
 ALLOBJS_MODULE :=
 
 # master object list (for dep generation)
 ALLOBJS :=
+
+# master source file list
+ALLSRCS :=
 
 # a linker script needs to be declared in one of the project/target/platform files
 LINKER_SCRIPT :=
@@ -84,7 +125,7 @@ LINKER_SCRIPT :=
 GENERATED := $(CONFIGHEADER)
 
 # anything added to GLOBAL_DEFINES will be put into $(BUILDDIR)/config.h
-GLOBAL_DEFINES := LK=1
+GLOBAL_DEFINES := LK=1 __TRUSTY__=1
 
 # Anything added to GLOBAL_SRCDEPS will become a dependency of every source file in the system.
 # Useful for header files that may be included by one or more source files.
@@ -120,6 +161,10 @@ BUILDID ?=
 # comment out or override if you want to see the full output of each command
 NOECHO ?= @
 
+GLOBAL_SHARED_COMPILEFLAGS += -Wimplicit-fallthrough
+# VLAs can have subtle security bugs and assist exploits, so ban them.
+GLOBAL_SHARED_COMPILEFLAGS += -Wvla
+
 # try to include the project file
 -include project/$(PROJECT).mk
 ifndef TARGET
@@ -131,9 +176,49 @@ $(error couldn't find target or target doesn't define platform)
 endif
 include platform/$(PLATFORM)/rules.mk
 
+# use linker garbage collection, if requested
+ifeq ($(WITH_LINKER_GC),1)
+GLOBAL_SHARED_COMPILEFLAGS += -ffunction-sections -fdata-sections
+GLOBAL_SHARED_LDFLAGS += --gc-sections
+endif
+
+# We need all .lk_init entries to be included, even though they are not
+# referenced by symbol, so the linker needs to include all objects from each
+# module archive.
+GLOBAL_KERNEL_LDFLAGS += --whole-archive
+
+ifneq ($(GLOBAL_COMPILEFLAGS),)
+$(error Setting GLOBAL_COMPILEFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_COMPILEFLAGS or GLOBAL_KERNEL_COMPILEFLAGS.)
+endif
+ifneq ($(GLOBAL_CFLAGS),)
+$(error Setting GLOBAL_CFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_CFLAGS or GLOBAL_KERNEL_CFLAGS.)
+endif
+ifneq ($(GLOBAL_CPPFLAGS),)
+$(error Setting GLOBAL_CPPFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_CPPFLAGS or GLOBAL_KERNEL_CPPFLAGS.)
+endif
+ifneq ($(GLOBAL_ASMFLAGS),)
+$(error Setting GLOBAL_ASMFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_ASMFLAGS or GLOBAL_KERNEL_ASMFLAGS.)
+endif
+ifneq ($(GLOBAL_LDFLAGS),)
+$(error Setting GLOBAL_LDFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_LDFLAGS or GLOBAL_KERNEL_LDFLAGS.)
+endif
+
+# Global flags should be set by now, we're moving on to building modules
+GLOBAL_COMPILEFLAGS := $(GLOBAL_SHARED_COMPILEFLAGS) $(GLOBAL_KERNEL_COMPILEFLAGS)
+GLOBAL_CFLAGS := $(GLOBAL_SHARED_CFLAGS) $(GLOBAL_KERNEL_CFLAGS)
+GLOBAL_CPPFLAGS := $(GLOBAL_SHARED_CPPFLAGS) $(GLOBAL_KERNEL_CPPFLAGS)
+GLOBAL_ASMFLAGS := $(GLOBAL_SHARED_ASMFLAGS) $(GLOBAL_KERNEL_ASMFLAGS)
+GLOBAL_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) $(GLOBAL_KERNEL_LDFLAGS)
+
 $(info PROJECT = $(PROJECT))
 $(info PLATFORM = $(PLATFORM))
 $(info TARGET = $(TARGET))
+
+# Derive the standard arch name.
+$(eval $(call standard_name_for_arch,STANDARD_ARCH_NAME,$(ARCH),$(SUBARCH)))
+
+# Set arch-specific flags for shadow call stack?
+SCS_ENABLED = $(KERNEL_SCS_ENABLED)
 
 include arch/$(ARCH)/rules.mk
 include top/rules.mk
@@ -141,9 +226,6 @@ include top/rules.mk
 # recursively include any modules in the MODULE variable, leaving a trail of included
 # modules in the ALLMODULES list
 include make/recurse.mk
-
-# any extra top level build dependencies that someone declared
-all:: $(EXTRA_BUILDDEPS)
 
 # add some automatic configuration defines
 GLOBAL_DEFINES += \
@@ -157,10 +239,63 @@ GLOBAL_DEFINES += \
 	ARCH=\"$(ARCH)\" \
 	$(addsuffix =1,$(addprefix WITH_,$(ALLMODULES)))
 
-# debug build?
-ifneq ($(DEBUG),)
 GLOBAL_DEFINES += \
-	LK_DEBUGLEVEL=$(DEBUG)
+	LK_DEBUGLEVEL=$(DEBUG) \
+	LK_LOGLEVEL=$(LOG_LEVEL_KERNEL) \
+	TLOG_LVL_DEFAULT=$$(($(LOG_LEVEL_USER)+2)) \
+
+# test build?
+ifneq ($(TEST_BUILD),)
+GLOBAL_DEFINES += \
+	TEST_BUILD=1
+endif
+
+# ASLR
+ifneq ($(ASLR),false)
+GLOBAL_DEFINES += \
+	ASLR=1
+endif
+
+# shadow call stack for user tasks
+ifeq (true,$(call TOBOOL,$(USER_SCS_ENABLED)))
+# guards allocation and deallocation of the SCS guard region in the kernel
+GLOBAL_DEFINES += \
+	USER_SCS_ENABLED=1
+endif
+
+# shadow call stack in the kernel
+ifeq (true,$(call TOBOOL,$(KERNEL_SCS_ENABLED)))
+GLOBAL_DEFINES += \
+	KERNEL_SCS_ENABLED=1
+endif
+
+ifeq (true,$(call TOBOOL,$(PIE_KERNEL)))
+# Build a PIE kernel binary
+GLOBAL_COMPILEFLAGS += -fPIE -fvisibility=hidden
+GLOBAL_LDFLAGS += -pie --no-dynamic-linker -z text -Bsymbolic
+# Use the very compact SHT_RELR encoding for dynamic relative relocations.
+GLOBAL_LDFLAGS += --pack-dyn-relocs=relr
+# lld can emit either the DT_RELR or DT_ANDROID_RELR tags.
+# Neither objcopy nor objdump recognize the former tags
+# and complain very loudly when seeing them, while silently
+# ignoring the DT_ANDROID_RELR tags because they're above DT_LOOS.
+# Passing --use-android-relr-tags tells lld to use DT_ANDROID_RELR.
+GLOBAL_LDFLAGS += --use-android-relr-tags
+endif
+
+# KERNEL_BASE_ASLR controls run-time randomization for the
+# base virtual address of the kernel image, i.e., the dynamic
+# value of KERNEL_BASE. This is currently disabled by default
+# and should be enabled manually per project because it has
+# several requirements:
+# * The platform must provide a RNG by either linking in libsm
+#   or implementing the appropriate APIs.
+# * An ARM platform must use the new dynamic GIC initialization
+#   function arm_gic_init_map() to allocate dynamic addresses for the GIC
+#   registers instead of using fixed addresses.
+# * Platforms should not use any hard-coded virtual addresses.
+ifeq ($(call TOBOOL,$(KERNEL_BASE_ASLR)), true)
+GLOBAL_DEFINES += KERNEL_BASE_ASLR=1
 endif
 
 # allow additional defines from outside the build system
@@ -183,15 +318,31 @@ endif
 
 # default to no ccache
 CCACHE ?=
-CC := $(CCACHE) $(TOOLCHAIN_PREFIX)gcc
-LD := $(TOOLCHAIN_PREFIX)ld
-AR := $(TOOLCHAIN_PREFIX)ar
+ifeq ($(CLANG_BINDIR),)
+$(error clang directory not specified, please set CLANG_BINDIR)
+endif
+CC := $(CCACHE) $(CLANG_BINDIR)/clang
+AR := $(CLANG_BINDIR)/llvm-ar
+LD := $(CLANG_BINDIR)/ld.lld
 OBJDUMP := $(TOOLCHAIN_PREFIX)objdump
 OBJCOPY := $(TOOLCHAIN_PREFIX)objcopy
 CPPFILT := $(TOOLCHAIN_PREFIX)c++filt
 SIZE := $(TOOLCHAIN_PREFIX)size
 NM := $(TOOLCHAIN_PREFIX)nm
 STRIP := $(TOOLCHAIN_PREFIX)strip
+
+GLOBAL_SHARED_RUSTFLAGS += -C linker="$(LD)"
+
+# TODO: we could find the runtime like this.
+# LIBGCC := $(shell $(CC) $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS) --rtlib=compiler-rt -print-libgcc-file-name)
+# However the compiler currently does not contain non-x86 prebuilts for the
+# linux-gnu ABI. We could either get those prebuilts added to the toolchain or
+# switch to the android ABI.
+# Note there are two copies of compiler-rt in the toolchain - framework and NDK.
+# We're using the NDK version because the path is more stable and the difference
+# should not matter for this library. (The main difference is which version of
+# libcxx they link against, and the builtins do not use C++.)
+LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_ARCH_NAME)-android.a
 
 # try to have the compiler output colorized error messages if available
 export GCC_COLORS ?= 1
@@ -209,6 +360,10 @@ GLOBAL_DEFINES += GLOBAL_CFLAGS=\"$(subst $(SPACE),_,$(GLOBAL_CFLAGS))\"
 GLOBAL_DEFINES += GLOBAL_CPPFLAGS=\"$(subst $(SPACE),_,$(GLOBAL_CPPFLAGS))\"
 GLOBAL_DEFINES += GLOBAL_ASMFLAGS=\"$(subst $(SPACE),_,$(GLOBAL_ASMFLAGS))\"
 GLOBAL_DEFINES += GLOBAL_LDFLAGS=\"$(subst $(SPACE),_,$(GLOBAL_LDFLAGS))\"
+GLOBAL_DEFINES += ARCH_COMPILEFLAGS=\"$(subst $(SPACE),_,$(ARCH_COMPILEFLAGS))\"
+GLOBAL_DEFINES += ARCH_CFLAGS=\"$(subst $(SPACE),_,$(ARCH_CFLAGS))\"
+GLOBAL_DEFINES += ARCH_CPPFLAGS=\"$(subst $(SPACE),_,$(ARCH_CPPFLAGS))\"
+GLOBAL_DEFINES += ARCH_ASMFLAGS=\"$(subst $(SPACE),_,$(ARCH_ASMFLAGS))\"
 
 ifneq ($(OBJS),)
 $(warning OBJS=$(OBJS))
@@ -234,8 +389,12 @@ $(info GLOBAL_OPTFLAGS = $(GLOBAL_OPTFLAGS))
 # make all object files depend on any targets in GLOBAL_SRCDEPS
 $(ALLOBJS): $(GLOBAL_SRCDEPS)
 
+# any extra top level build dependencies that someone declared.
+# build.mk may add to EXTRA_BUILDDEPS, this must be evalauted after build.mk.
+all:: $(EXTRA_BUILDDEPS)
+
 clean: $(EXTRA_CLEANDEPS)
-	rm -f $(ALLOBJS) $(DEPS) $(GENERATED) $(OUTBIN) $(OUTELF) $(OUTELF).lst $(OUTELF).debug.lst $(OUTELF).sym $(OUTELF).sym.sorted $(OUTELF).size $(OUTELF).hex $(OUTELF).dump
+	rm -f $(ALLOBJS) $(DEPS) $(GENERATED) $(OUTBIN) $(OUTELF) $(OUTELF).sym $(OUTELF).sym.sorted $(OUTELF).size $(OUTELF).hex $(OUTELF).dump
 
 install: all
 	scp $(OUTBIN) 192.168.0.4:/tftproot

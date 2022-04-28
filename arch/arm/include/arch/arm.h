@@ -30,20 +30,21 @@
 
 /* due to the cp15 accessors below, you're gonna have a bad time if you try
  * to compile in thumb mode. Either compile in ARM only or get a thumb2 capable cpu.
- */
+
 #if defined(__thumb__) && !defined(__thumb2__)
 #error this file unsupported in thumb1 mode
 #endif
-
+*/
 __BEGIN_CDECLS
 
 #if ARM_ISA_ARMV7
 #define DSB __asm__ volatile("dsb" ::: "memory")
 #define DMB __asm__ volatile("dmb" ::: "memory")
 #define ISB __asm__ volatile("isb" ::: "memory")
-#elif ARM_ISA_ARMV6
+#elif ARM_ISA_ARMV6 || ARM_ISA_ARMV6M
 #define DSB __asm__ volatile("mcr p15, 0, %0, c7, c10, 4" :: "r" (0) : "memory")
 #define ISB __asm__ volatile("mcr p15, 0, %0, c7, c5, 4" :: "r" (0) : "memory")
+#define DMB __asm__ volatile("nop")
 #else
 #error unhandled arm isa
 #endif
@@ -55,10 +56,10 @@ void arm_chain_load(paddr_t entry, ulong arg0, ulong arg1, ulong arg2, ulong arg
 
 static inline uint32_t read_cpsr(void)
 {
-	uint32_t cpsr;
+    uint32_t cpsr;
 
-	__asm__ volatile("mrs   %0, cpsr" : "=r" (cpsr));
-	return cpsr;
+    __asm__ volatile("mrs   %0, cpsr" : "=r" (cpsr));
+    return cpsr;
 }
 
 #define CPSR_MODE_MASK 0x1f
@@ -78,64 +79,88 @@ static inline uint32_t read_cpsr(void)
 
 struct arm_iframe {
 #if ARM_WITH_VFP
-	uint32_t fpexc;
+    uint32_t fpexc;
 #endif
-	uint32_t usp;
-	uint32_t ulr;
-	uint32_t r0;
-	uint32_t r1;
-	uint32_t r2;
-	uint32_t r3;
-	uint32_t r12;
-	uint32_t lr;
-	uint32_t pc;
-	uint32_t spsr;
+    uint32_t usp;
+    uint32_t ulr;
+    uint32_t r0;
+    uint32_t r1;
+    uint32_t r2;
+    uint32_t r3;
+    uint32_t r12;
+    uint32_t lr;
+    uint32_t fp;
+    uint32_t pc;
+    uint32_t spsr;
 };
 
 struct arm_fault_frame {
 #if ARM_WITH_VFP
-	uint32_t fpexc;
+    uint32_t fpexc;
 #endif
-	uint32_t usp;
-	uint32_t ulr;
-	uint32_t r[13];
-	uint32_t lr;
-	uint32_t pc;
-	uint32_t spsr;
+    uint32_t usp;
+    uint32_t ulr;
+    uint32_t r[13];
+    uint32_t lr;
+    uint32_t fp;
+    uint32_t pc;
+    uint32_t spsr;
 };
 
 struct arm_mode_regs {
-	uint32_t usr_r13, usr_r14;
-	uint32_t fiq_r13, fiq_r14;
-	uint32_t irq_r13, irq_r14;
-	uint32_t svc_r13, svc_r14;
-	uint32_t abt_r13, abt_r14;
-	uint32_t und_r13, und_r14;
-	uint32_t sys_r13, sys_r14;
+    uint32_t usr_r13, usr_r14;
+    uint32_t fiq_r13, fiq_r14;
+    uint32_t irq_r13, irq_r14;
+    uint32_t svc_r13, svc_r14;
+    uint32_t abt_r13, abt_r14;
+    uint32_t und_r13, und_r14;
+    uint32_t sys_r13, sys_r14;
 };
 
 void arm_save_mode_regs(struct arm_mode_regs *regs);
 
 #define GEN_CP_REG_FUNCS(cp, reg, op1, c1, c2, op2) \
 static inline __ALWAYS_INLINE uint32_t arm_read_##reg(void) { \
-	uint32_t val; \
-	__asm__ volatile("mrc " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 : "=r" (val)); \
-	return val; \
+    uint32_t val; \
+    __asm__ volatile("mrc " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 : "=r" (val)); \
+    return val; \
 } \
 \
 static inline __ALWAYS_INLINE uint32_t arm_read_##reg##_relaxed(void) { \
-	uint32_t val; \
-	__asm__("mrc " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 : "=r" (val)); \
-	return val; \
+    uint32_t val; \
+    __asm__("mrc " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 : "=r" (val)); \
+    return val; \
 } \
 \
 static inline __ALWAYS_INLINE void arm_write_##reg(uint32_t val) { \
-	__asm__ volatile("mcr " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 :: "r" (val)); \
-	ISB; \
+    __asm__ volatile("mcr " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 :: "r" (val)); \
+    ISB; \
 } \
 \
 static inline __ALWAYS_INLINE void arm_write_##reg##_relaxed(uint32_t val) { \
-	__asm__ volatile("mcr " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 :: "r" (val)); \
+    __asm__ volatile("mcr " #cp ", " #op1 ", %0, " #c1 ","  #c2 "," #op2 :: "r" (val)); \
+}
+
+#define GEN_CP_REG64_FUNCS(cp, reg, op1, crm) \
+static inline __ALWAYS_INLINE uint32_t arm_read_##reg(void) { \
+    uint64_t _val; \
+    __asm__ volatile("mrrc " #cp ", " #op1 ", %0, %H0, " #crm : "=r" (_val)); \
+    return _val; \
+} \
+\
+static inline __ALWAYS_INLINE uint32_t arm_read_##reg##_relaxed(void) { \
+    uint64_t _val; \
+    __asm__("mrrc " #cp ", " #op1 ", %0, %H0, " #crm : "=r" (_val)); \
+    return _val; \
+} \
+\
+static inline __ALWAYS_INLINE void arm_write_##reg(uint64_t val) { \
+    __asm__ volatile("mcrr " #cp ", " #op1 ", %0, %H0, " #crm :: "r" (val)); \
+    ISB; \
+} \
+\
+static inline __ALWAYS_INLINE void arm_write_##reg##_relaxed(uint64_t val) { \
+    __asm__ volatile("mcrr " #cp ", " #op1 ", %0, %H0, " #crm :: "r" (val)); \
 }
 
 #define GEN_CP15_REG_FUNCS(reg, op1, c1, c2, op2) \
@@ -143,6 +168,9 @@ static inline __ALWAYS_INLINE void arm_write_##reg##_relaxed(uint32_t val) { \
 
 #define GEN_CP14_REG_FUNCS(reg, op1, c1, c2, op2) \
     GEN_CP_REG_FUNCS(p14, reg, op1, c1, c2, op2)
+
+#define GEN_CP15_REG64_FUNCS(reg, op1, crm) \
+    GEN_CP_REG64_FUNCS(p15, reg, op1, crm)
 
 /* armv6+ control regs */
 GEN_CP15_REG_FUNCS(sctlr, 0, c1, c0, 0);

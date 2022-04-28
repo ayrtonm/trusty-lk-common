@@ -1,0 +1,33 @@
+{
+  "arch": "arm",
+  "crt-objects-fallback": "musl",
+  "data-layout": "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64",
+  "dynamic-linking": false,
+  "env": "musl",
+  "executables": true,
+  "features": "+v7,+thumb2,+soft-float,-neon",
+  "has-elf-tls": false,
+  "has-rpath": true,
+  "llvm-target": "armv7-unknown-linux-gnueabi",
+  "max-atomic-width": 64,
+  "os": "linux",
+  "panic-strategy": "abort",
+  "position-independent-executables": true,
+  "relro-level": "full",
+  "singlethread": true,
+  "target-family": [
+    "unix"
+  ],
+  "target-mcount": "\u0001mcount",
+  "target-pointer-width": "32",
+  "unsupported-abis": [
+    "stdcall",
+    "stdcall-unwind",
+    "fastcall",
+    "vectorcall",
+    "thiscall",
+    "thiscall-unwind",
+    "win64",
+    "sysv64"
+  ]
+}

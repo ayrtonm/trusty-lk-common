@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -41,19 +42,39 @@ typedef long long     off_t;
 typedef int status_t;
 
 typedef uintptr_t addr_t;
+#define ADDR_MAX UINTPTR_MAX
 typedef uintptr_t vaddr_t;
+#define VADDR_MAX UINTPTR_MAX
 typedef uintptr_t paddr_t;
+#define PADDR_MAX UINTPTR_MAX
 
 typedef int kobj_id;
 
 typedef uint32_t lk_time_t;
-typedef unsigned long long lk_bigtime_t;
+typedef unsigned long long lk_time_ns_t;
 #define INFINITE_TIME UINT32_MAX
 
-#define TIME_GTE(a, b) ((int32_t)((a) - (b)) >= 0)
-#define TIME_LTE(a, b) ((int32_t)((a) - (b)) <= 0)
-#define TIME_GT(a, b) ((int32_t)((a) - (b)) > 0)
-#define TIME_LT(a, b) ((int32_t)((a) - (b)) < 0)
+/* The overflow here is intended to deal with timestamps near wrapping */
+__attribute__((no_sanitize("unsigned-integer-overflow")))
+static inline int64_t time_delta(lk_time_ns_t a, lk_time_ns_t b) {
+    return (int64_t)(a - b);
+}
+
+static inline bool time_gte(lk_time_ns_t a, lk_time_ns_t b) {
+    return time_delta(a, b) >= 0;
+}
+
+static inline bool time_lte(lk_time_ns_t a, lk_time_ns_t b) {
+    return time_delta(a, b) <= 0;
+}
+
+static inline bool time_gt(lk_time_ns_t a, lk_time_ns_t b) {
+    return time_delta(a, b) > 0;
+}
+
+static inline bool time_lt(lk_time_ns_t a, lk_time_ns_t b) {
+    return time_delta(a, b) < 0;
+}
 
 enum handler_return {
     INT_NO_RESCHEDULE = 0,

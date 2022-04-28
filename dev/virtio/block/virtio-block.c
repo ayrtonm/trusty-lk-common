@@ -112,14 +112,14 @@ status_t virtio_block_init(struct virtio_device *dev, uint32_t host_features)
 
     bdev->blk_req = memalign(sizeof(struct virtio_blk_req), sizeof(struct virtio_blk_req));
 #if WITH_KERNEL_VM
-    arch_mmu_query((vaddr_t)bdev->blk_req, &bdev->blk_req_phys, NULL);
+    bdev->blk_req_phys = vaddr_to_paddr(bdev->blk_req);
 #else
     bdev->blk_freq_phys = (uint64_t)(uintptr_t)bdev->blk_req;
 #endif
     LTRACEF("blk_req structure at %p (0x%lx phys)\n", bdev->blk_req, bdev->blk_req_phys);
 
 #if WITH_KERNEL_VM
-    arch_mmu_query((vaddr_t)&bdev->blk_response, &bdev->blk_response_phys, NULL);
+    bdev->blk_response_phys = vaddr_to_paddr(&bdev->blk_response);
 #else
     bdev->blk_response_phys = (uint64_t)(uintptr_t)&bdev->blk_response;
 #endif
@@ -154,7 +154,7 @@ status_t virtio_block_init(struct virtio_device *dev, uint32_t host_features)
     snprintf(buf, sizeof(buf), "virtio%u", found_index++);
     bio_initialize_bdev(&bdev->bdev, buf,
                         config->blk_size, config->capacity,
-                        0, NULL);
+                        0, NULL, BIO_FLAGS_NONE);
 
     /* override our block device hooks */
     bdev->bdev.read_block = &virtio_bdev_read_block;
@@ -237,7 +237,7 @@ ssize_t virtio_block_read_write(struct virtio_device *dev, void *buf, off_t offs
     desc = virtio_desc_index_to_desc(dev, 0, desc->next);
 #if WITH_KERNEL_VM
     /* translate the first buffer */
-    arch_mmu_query(va, &pa, NULL);
+    pa = vaddr_to_paddr((void *)va);
     desc->addr = (uint64_t)pa;
     /* desc->len is filled in below */
 #else
@@ -249,17 +249,17 @@ ssize_t virtio_block_read_write(struct virtio_device *dev, void *buf, off_t offs
 
 #if WITH_KERNEL_VM
     /* see if we need to add more descriptors due to scatter gather */
-    paddr_t next_pa = PAGE_ALIGN(pa + 1);
+    paddr_t next_pa = page_align(pa + 1);
     desc->len = MIN(next_pa - pa, len);
-    LTRACEF("first descriptor va 0x%lx desc->addr 0x%llx desc->len %zu\n", va, desc->addr, desc->len);
+    LTRACEF("first descriptor va 0x%lx desc->addr 0x%llx desc->len %u\n", va, desc->addr, desc->len);
     len -= desc->len;
     while (len > 0) {
         /* amount of source buffer handled by this iteration of the loop */
         size_t len_tohandle = MIN(len, PAGE_SIZE);
 
         /* translate the next page in the buffer */
-        va = PAGE_ALIGN(va + 1);
-        arch_mmu_query(va, &pa, NULL);
+        va = page_align(va + 1);
+        pa = vaddr_to_paddr((void *)va);
         LTRACEF("va now 0x%lx, pa 0x%lx, next_pa 0x%lx, remaining len %zu\n", va, pa, next_pa, len);
 
         /* is the new translated physical address contiguous to the last one? */
@@ -316,7 +316,12 @@ static ssize_t virtio_bdev_read_block(struct bdev *bdev, void *buf, bnum_t block
 
     LTRACEF("dev %p, buf %p, block 0x%x, count %u\n", bdev, buf, block, count);
 
-    return virtio_block_read_write(dev->dev, buf, (off_t)block * dev->bdev.block_size, count * dev->bdev.block_size, false);
+    if (virtio_block_read_write(dev->dev, buf, (off_t)block * dev->bdev.block_size,
+                                count * dev->bdev.block_size, false) == 0) {
+        return count * dev->bdev.block_size;
+    } else {
+        return ERR_IO;
+    }
 }
 
 static ssize_t virtio_bdev_write_block(struct bdev *bdev, const void *buf, bnum_t block, uint count)
@@ -325,6 +330,11 @@ static ssize_t virtio_bdev_write_block(struct bdev *bdev, const void *buf, bnum_
 
     LTRACEF("dev %p, buf %p, block 0x%x, count %u\n", bdev, buf, block, count);
 
-    return virtio_block_read_write(dev->dev, (void *)buf, (off_t)block * dev->bdev.block_size, count * dev->bdev.block_size, true);
+    if (virtio_block_read_write(dev->dev, (void *)buf, (off_t)block * dev->bdev.block_size,
+                                count * dev->bdev.block_size, true) == 0) {
+        return count * dev->bdev.block_size;
+    } else {
+        return ERR_IO;
+    }
 }
 

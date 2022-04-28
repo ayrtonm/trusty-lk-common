@@ -258,7 +258,8 @@
                         MMU_TCR_SH0(MMU_SH_INNER_SHAREABLE) | \
                         MMU_TCR_ORGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
                         MMU_TCR_IRGN0(MMU_RGN_WRITE_BACK_ALLOCATE) | \
-                        MMU_TCR_T0SZ(64 - MMU_USER_SIZE_SHIFT))
+                        MMU_TCR_T0SZ(64 - MMU_USER_SIZE_SHIFT) | \
+                        MMU_TCR_TBI0)
 #define MMU_TCR_FLAGS0_IDENT \
                        (MMU_TCR_TG0(MMU_TG0(MMU_IDENT_PAGE_SIZE_SHIFT)) | \
                         MMU_TCR_SH0(MMU_SH_INNER_SHAREABLE) | \
@@ -280,35 +281,6 @@
      MMU_PTE_ATTR_AF | \
      MMU_PTE_ATTR_SH_INNER_SHAREABLE | \
      MMU_PTE_ATTR_NORMAL_MEMORY | \
-     MMU_PTE_ATTR_AP_P_RW_U_NA)
-
-#define MMU_PTE_KERNEL_RO_FLAGS \
-    (MMU_PTE_ATTR_UXN | \
-     MMU_PTE_ATTR_AF | \
-     MMU_PTE_ATTR_SH_INNER_SHAREABLE | \
-     MMU_PTE_ATTR_NORMAL_MEMORY | \
-     MMU_PTE_ATTR_AP_P_RO_U_NA)
-
-#define MMU_PTE_KERNEL_DATA_FLAGS \
-    (MMU_PTE_ATTR_UXN | \
-     MMU_PTE_ATTR_PXN | \
-     MMU_PTE_ATTR_AF | \
-     MMU_PTE_ATTR_SH_INNER_SHAREABLE | \
-     MMU_PTE_ATTR_NORMAL_MEMORY | \
-     MMU_PTE_ATTR_AP_P_RW_U_NA)
-
-#define MMU_INITIAL_MAP_STRONGLY_ORDERED \
-    (MMU_PTE_ATTR_UXN | \
-     MMU_PTE_ATTR_PXN | \
-     MMU_PTE_ATTR_AF | \
-     MMU_PTE_ATTR_STRONGLY_ORDERED | \
-     MMU_PTE_ATTR_AP_P_RW_U_NA)
-
-#define MMU_INITIAL_MAP_DEVICE \
-    (MMU_PTE_ATTR_UXN | \
-     MMU_PTE_ATTR_PXN | \
-     MMU_PTE_ATTR_AF | \
-     MMU_PTE_ATTR_DEVICE | \
      MMU_PTE_ATTR_AP_P_RW_U_NA)
 
 #ifndef ASSEMBLY

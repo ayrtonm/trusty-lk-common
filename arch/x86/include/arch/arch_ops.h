@@ -21,93 +21,109 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef __ARCH_X86_OPS_H
-#define __ARHC_X86_OPS_H
+#pragma once
 
 #include <compiler.h>
 
 #ifndef ASSEMBLY
 
 #include <arch/x86.h>
+#include <arch/x86/mp.h>
 
 /* override of some routines */
+
+/*
+ * According to ISDM vol2, description of STI instruction:
+ *   If IF = 0, maskable hardware interrupts remain inhibited on the instruction
+ *   boundary following an execution of STI.
+ * To ensure interrupt can be recognized, NOP instruction follows immediately of
+ * STI instruction.
+ */
 static inline void arch_enable_ints(void)
 {
-	CF;
-	__asm__ volatile("sti");
+    CF;
+    __asm__ volatile(
+            "sti\n"
+            "nop\n"
+    );
 }
 
 static inline void arch_disable_ints(void)
 {
-	__asm__ volatile("cli");
-	CF;
+    __asm__ volatile("cli");
+    CF;
 }
 
 static inline bool arch_ints_disabled(void)
 {
-	unsigned int state;
+    x86_flags_t state;
 
-	__asm__ volatile(
-	   "pushfl;"
-	   "popl %%eax"
-	   : "=a" (state)
-	   :: "memory");
+    __asm__ volatile(
+#if ARCH_X86_32
+        "pushfl;"
+        "popl %%eax"
+#elif ARCH_X86_64
+        "pushfq;"
+        "popq %%rax"
+#endif
+        : "=a" (state)
+        :: "memory");
 
-	return !(state & (1<<9));
+    return !(state & (1<<9));
 }
 
 int _atomic_and(volatile int *ptr, int val);
 int _atomic_or(volatile int *ptr, int val);
-int _atomic_cmpxchg(volatile int *ptr, int oldval, int newval);
 
 static inline int atomic_add(volatile int *ptr, int val)
 {
-	__asm__ volatile(
-		"lock xaddl %[val], %[ptr];"
-		: [val]"=a" (val)
-		: "a" (val), [ptr]"m" (*ptr)
-		: "memory"
-	);
+    __asm__ volatile(
+        "lock xaddl %[val], %[ptr];"
+        : [val]"=a" (val)
+        : "a" (val), [ptr]"m" (*ptr)
+        : "memory"
+    );
 
-	return val;
+    return val;
 }
 
 static inline int atomic_swap(volatile int *ptr, int val)
 {
-	__asm__ volatile(
-		"xchgl %[val], %[ptr];"
-		: [val]"=a" (val)
-		: "a" (val), [ptr]"m" (*ptr)
-		: "memory"
-	);
+    __asm__ volatile(
+        "xchgl %[val], %[ptr];"
+        : [val]"=a" (val)
+        : "a" (val), [ptr]"m" (*ptr)
+        : "memory"
+    );
 
-	return val;
+    return val;
 }
 
 
 static inline int atomic_and(volatile int *ptr, int val) { return _atomic_and(ptr, val); }
 static inline int atomic_or(volatile int *ptr, int val) { return _atomic_or(ptr, val); }
-static inline int atomic_cmpxchg(volatile int *ptr, int oldval, int newval) { return _atomic_cmpxchg(ptr, oldval, newval); }
+static inline int atomic_cmpxchg(volatile int *ptr, int oldval, int newval)
+{
+    __atomic_compare_exchange_n(ptr, &oldval, newval, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+    return oldval;
+}
 
 static inline uint32_t arch_cycle_count(void)
 {
-	uint32_t timestamp;
-	rdtscl(timestamp);
+    uint32_t timestamp;
+    rdtscl(timestamp);
 
-	return timestamp;
+    return timestamp;
 }
-
-/* use a global pointer to store the current_thread */
-extern struct thread *_current_thread;
 
 static inline struct thread *get_current_thread(void)
 {
-    return _current_thread;
+    return (struct thread *)x86_read_gs_with_offset(CUR_THREAD_OFF);
 }
 
 static inline void set_current_thread(struct thread *t)
 {
-    _current_thread = t;
+    x86_write_gs_with_offset(CUR_THREAD_OFF, (uint64_t)t);
 }
 
 static inline uint arch_curr_cpu_num(void)
@@ -115,7 +131,12 @@ static inline uint arch_curr_cpu_num(void)
     return 0;
 }
 
+#define mb()        __asm__ volatile ("mfence":::"memory");
+#define wmb()       __asm__ volatile ("sfence":::"memory");
+#define rmb()       __asm__ volatile ("lfence":::"memory");
+
+#define smp_mb()    mb()
+#define smp_wmb()   wmb()
+#define smp_rmb()   rmb()
+
 #endif // !ASSEMBLY
-
-#endif
-

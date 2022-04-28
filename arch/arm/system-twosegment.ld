@@ -5,6 +5,7 @@ ENTRY(_start)
 SECTIONS
 {
     . = %ROMBASE%;
+    __rom_start = .;
 
     /* text/read-only data */
     .text : {
@@ -54,31 +55,6 @@ SECTIONS
         *(.rodata .rodata.* .gnu.linkonce.r.*)
     }
 
-    /* fake section for .data to anchor off of
-     * needed because extra linker scripts tend to insert sections
-     * just after .rodata
-     */
-    .bogus : {
-        /* end of rodata, start of data area */
-        __rodata_end = . ;
-        __data_start_rom = .;
-    }
-
-    /* in two segment binaries, the data starts at the bottom of ram (MEMBASE)
-     * bump us forward to the start of ram
-     */
-    . = %MEMBASE%;
-
-    /* start .data segment, force the physical address to be AT() __data_start_rom */
-    .data : AT ( ADDR (.bogus) + SIZEOF (.bogus) ) ALIGN(4) {
-        __data_start = .;
-        *(.data .data.* .gnu.linkonce.d.*)
-    }
-
-    /* code that is located in ram */
-    .sram.text : ALIGN(4) {
-        KEEP (*(.sram.text*))
-    }
     .ctors : ALIGN(4) {
         __ctor_list = .;
         KEEP(*(.ctors .init_array))
@@ -89,13 +65,48 @@ SECTIONS
         KEEP(*(.dtors .fini_array))
         __dtor_end = .;
     }
+
+    /* fake section for .data to anchor off of
+     * needed because extra linker scripts tend to insert sections
+     * just after .rodata
+     */
+    .fake_post_rodata : {
+        /* end of rodata, start of data area */
+        __rodata_end = . ;
+        __rom_end = . ;
+        __data_start_rom = .;
+    }
+
+    /* in two segment binaries, the data starts at the bottom of ram (MEMBASE)
+     * bump us forward to the start of ram
+     */
+    . = %MEMBASE%;
+
+    /* start .data segment, force the physical address to be AT() __data_start_rom */
+    .data : AT ( ADDR (.fake_post_rodata) + SIZEOF (.fake_post_rodata) ) ALIGN(4) {
+        __data_start = .;
+        *(.data .data.* .gnu.linkonce.d.*)
+    }
+
+    /* code that is located in ram */
+    .sram.text : ALIGN(4) {
+        KEEP (*(.sram.text*))
+    }
+
     .got : { *(.got.plt) *(.got) }
     .dynamic : { *(.dynamic) }
 
-    /* unintialized data (in same segment as writable data) */
-    .bss : ALIGN(4) {
+    /*
+     * extra linker scripts tend to insert sections just after .data,
+     * so we want to make sure this symbol comes after anything inserted above,
+     * but not aligned to the next section necessarily.
+     */
+    .fake_post_data : {
         __data_end = .;
+    }
 
+    /* uninitialized data (in same segment as writable data) */
+    .bss : ALIGN(4) {
         KEEP(*(.bss.prebss.*))
         . = ALIGN(4);
         __bss_start = .;

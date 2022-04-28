@@ -23,6 +23,7 @@
 #include <kernel/vm.h>
 #include "vm_priv.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -35,18 +36,25 @@
 /* track how much memory we've used */
 extern int _end;
 
-uintptr_t boot_alloc_start = (uintptr_t)&_end;
-uintptr_t boot_alloc_end = (uintptr_t)&_end;
+uintptr_t boot_alloc_start = (uintptr_t) &_end;
+uintptr_t boot_alloc_end = (uintptr_t) &_end;
 
-void *boot_alloc_mem(size_t len)
+void *boot_alloc_memalign(size_t len, size_t alignment)
 {
     uintptr_t ptr;
 
-    ptr = ALIGN(boot_alloc_end, 8);
-    boot_alloc_end = (ptr + ALIGN(len, 8));
+    /* boot_alloc_end == 0 indicates we should no longer use this allocator */
+    ASSERT(boot_alloc_end);
+
+    ptr = align(boot_alloc_end, alignment);
+    boot_alloc_end = (ptr + align(len, alignment));
 
     LTRACEF("len %zu, ptr %p\n", len, (void *)ptr);
 
     return (void *)ptr;
 }
 
+void *boot_alloc_mem(size_t len)
+{
+    return boot_alloc_memalign(len, 8);
+}

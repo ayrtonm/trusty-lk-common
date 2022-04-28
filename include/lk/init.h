@@ -49,21 +49,84 @@ enum lk_init_level {
     LK_INIT_LEVEL_LAST = UINT_MAX,
 };
 
+/**
+ * enum lk_init_flags - Flags specifying init hook type.
+ *
+ * Flags passed to LK_INIT_HOOK_FLAGS to specify when the hook should be called.
+ */
 enum lk_init_flags {
+    /**
+     * @LK_INIT_FLAG_PRIMARY_CPU: Call init hook when booting primary CPU.
+     */
     LK_INIT_FLAG_PRIMARY_CPU     = 0x1,
+
+    /**
+     * @LK_INIT_FLAG_SECONDARY_CPUS: Call init hook when booting secondary CPUs.
+     */
     LK_INIT_FLAG_SECONDARY_CPUS  = 0x2,
+
+    /**
+     * @LK_INIT_FLAG_ALL_CPUS: Call init hook when booting any CPU.
+     */
     LK_INIT_FLAG_ALL_CPUS        = LK_INIT_FLAG_PRIMARY_CPU | LK_INIT_FLAG_SECONDARY_CPUS,
-    LK_INIT_FLAG_CPU_SUSPEND     = 0x4,
-    LK_INIT_FLAG_CPU_RESUME      = 0x8,
+
+    /**
+     * @LK_INIT_FLAG_CPU_ENTER_IDLE: Call init hook before a CPU enters idle.
+     *
+     * The CPU may lose state after this, but it should respond to interrupts.
+     */
+    LK_INIT_FLAG_CPU_ENTER_IDLE  = 0x4,
+
+    /**
+     * @LK_INIT_FLAG_CPU_OFF: Call init hook before a CPU goes offline.
+     *
+     * The CPU may lose state after this, and it should not respond to
+     * interrupts.
+     */
+    LK_INIT_FLAG_CPU_OFF         = 0x8,
+
+    /**
+     * @LK_INIT_FLAG_CPU_SUSPEND: Call init hook before a CPU loses state.
+     *
+     * Alias to call hook for both LK_INIT_FLAG_CPU_ENTER_IDLE and
+     * LK_INIT_FLAG_CPU_OFF events.
+     */
+    LK_INIT_FLAG_CPU_SUSPEND     = LK_INIT_FLAG_CPU_ENTER_IDLE | LK_INIT_FLAG_CPU_OFF,
+
+    /**
+     * @LK_INIT_FLAG_CPU_EXIT_IDLE: Call init hook after a CPU exits idle.
+     *
+     * LK_INIT_FLAG_CPU_ENTER_IDLE should have been called before this.
+     */
+    LK_INIT_FLAG_CPU_EXIT_IDLE   = 0x10,
+
+    /**
+     * @LK_INIT_FLAG_CPU_ON: Call init hook after a CPU turns on.
+     *
+     * LK_INIT_FLAG_CPU_OFF should have been called before this. The first time
+     * a CPU turns on LK_INIT_FLAG_PRIMARY_CPU or LK_INIT_FLAG_SECONDARY_CPUS
+     * is called instead of this.
+     */
+    LK_INIT_FLAG_CPU_ON          = 0x20,
+
+    /**
+     * @LK_INIT_FLAG_CPU_RESUME: Call init hook after a CPU exits idle.
+     *
+     * Alias to call hook for both LK_INIT_FLAG_CPU_EXIT_IDLE and
+     * LK_INIT_FLAG_CPU_ON events.
+     */
+    LK_INIT_FLAG_CPU_RESUME      = LK_INIT_FLAG_CPU_EXIT_IDLE | LK_INIT_FLAG_CPU_ON,
 };
 
 void lk_init_level(enum lk_init_flags flags, uint start_level, uint stop_level);
 
-static inline void lk_primary_cpu_init_level(uint start_level, uint stop_level) {
+static inline void lk_primary_cpu_init_level(uint start_level, uint stop_level)
+{
     lk_init_level(LK_INIT_FLAG_PRIMARY_CPU, start_level, stop_level);
 }
 
-static inline void lk_init_level_all(enum lk_init_flags flags) {
+static inline void lk_init_level_all(enum lk_init_flags flags)
+{
     lk_init_level(flags, LK_INIT_LEVEL_EARLIEST, LK_INIT_LEVEL_LAST);
 }
 
@@ -74,27 +137,13 @@ struct lk_init_struct {
     const char *name;
 };
 
-#if MODULE_STATIC_LIB
-#define LK_INIT_HOOK_FLAGS(a,b,c,d) _Pragma("GCC error \"init hooks are not fully compatible with static libraries\"")
-#elif defined(ARCH_X86_64)
 #define LK_INIT_HOOK_FLAGS(_name, _hook, _level, _flags) \
-    const struct lk_init_struct _init_struct_##_name __ALIGNED(8) __SECTION(".lk_init") = { \
+    const struct lk_init_struct _init_struct_##_name __ALIGNED(sizeof(void *)) __attribute__((used)) __attribute__((visibility("default"))) __SECTION(".lk_init") = { \
         .level = _level, \
         .flags = _flags, \
         .hook = _hook, \
         .name = #_name, \
     };
-#else
-#define LK_INIT_HOOK_FLAGS(_name, _hook, _level, _flags) \
-    const struct lk_init_struct _init_struct_##_name __SECTION(".lk_init") = { \
-        .level = _level, \
-        .flags = _flags, \
-        .hook = _hook, \
-        .name = #_name, \
-    };
-#endif
 
 #define LK_INIT_HOOK(_name, _hook, _level) \
     LK_INIT_HOOK_FLAGS(_name, _hook, _level, LK_INIT_FLAG_PRIMARY_CPU)
-
-// vim: set ts=4 sw=4 expandtab:

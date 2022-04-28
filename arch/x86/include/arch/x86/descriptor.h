@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2009 Corey Tabaka
+ * Copyright (c) 2014 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -20,21 +21,26 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef __ARCH_DESCRIPTOR_H
-#define __ARCH_DESCRIPTOR_H
-
-#include <sys/types.h>
+#pragma once
 
 /*
  * System Selectors
  */
-#define CODE_SELECTOR   0x08
-#define DATA_SELECTOR   0x10
-#define VIDEO_SELECTOR  0x18
-#define TSS_SELECTOR    0x30
+#define NULL_SELECTOR       0x00
 
-#define USER_CODE_SELECTOR 0x23
-#define USER_DATA_SELECTOR 0x2b
+/********* x86 selectors *********/
+#define CODE_SELECTOR       0x08
+#define DATA_SELECTOR       0x10
+#define USER_CODE_32_SELECTOR   0x18
+#define USER_DATA_32_SELECTOR   0x20
+
+/******* x86-64 selectors ********/
+#define CODE_64_SELECTOR    0x28
+#define STACK_64_SELECTOR   0x30
+#define USER_CODE_64_SELECTOR   0x38
+#define USER_DATA_64_SELECTOR   0x40
+
+#define TSS_SELECTOR        0x48
 
 /*
  * Descriptor Types
@@ -46,7 +52,16 @@
 #define SEG_TYPE_DATA_RW    0x2
 #define SEG_TYPE_CODE_RW    0xa
 
+#ifndef ASSEMBLY
+
+#include <arch/x86.h>
+#include <sys/types.h>
+
 typedef uint16_t seg_sel_t;
+
+extern tss_t system_tss[SMP_MAX_CPUS];
+
+tss_t *get_tss_base(void);
 
 void set_global_desc(seg_sel_t sel, void *base, uint32_t limit,
                      uint8_t present, uint8_t ring, uint8_t sys, uint8_t type, uint8_t gran, uint8_t bits);

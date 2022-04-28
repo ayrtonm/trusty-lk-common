@@ -11,8 +11,15 @@ TOBUILDDIR = $(addprefix $(BUILDDIR)/,$(1))
 TOBOOL = $(if $(filter-out 0 false,$1),true,false)
 
 COMMA := ,
-SPACE :=
-SPACE +=
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+
+define NEWLINE
+
+
+endef
+
+STRIP_TRAILING_COMMA = $(if $(1),$(subst $(COMMA)END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA,,$(strip $(1))END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA))
 
 # test if two files are different, replacing the first
 # with the second if so
@@ -43,4 +50,29 @@ define MAKECONFIGHEADER
 	done; \
 	echo \#endif >> $1.tmp; \
 	$(call TESTANDREPLACEFILE,$1.tmp,$1)
+endef
+
+# Map LK's arch names into a more common form.
+define standard_name_for_arch
+ifeq ($(2),arm)
+$(1) := arm
+else
+ifeq ($(2),arm64)
+$(1) := aarch64
+else
+ifeq ($(2),x86)
+ifeq ($(3),x86-64)
+$(1) := x86_64
+else
+ifeq ($(3),x86-32)
+$(1) := i386
+else
+$$(error "unknown arch: $(2) / $(3)")
+endif
+endif
+else
+$$(error "unknown arch: $(2) / $(3)")
+endif
+endif
+endif
 endef

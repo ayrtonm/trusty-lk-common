@@ -29,6 +29,7 @@
 
 #define LOCAL_TRACE 0
 
+#if ARM_WITH_VFP
 static inline bool is_16regs(void)
 {
     uint32_t mvfr0;
@@ -40,15 +41,13 @@ static inline bool is_16regs(void)
 static inline uint32_t read_fpexc(void)
 {
     uint32_t val;
-    /* use legacy encoding of vmsr reg, fpexc */
-    __asm__("mrc  p10, 7, %0, c8, c0, 0" : "=r" (val));
+    __asm__("vmrs %0, fpexc" : "=r" (val));
     return val;
 }
 
 static inline void write_fpexc(uint32_t val)
 {
-    /* use legacy encoding of vmrs fpexc, reg */
-    __asm__ volatile("mcr  p10, 7, %0, c8, c0, 0" :: "r" (val));
+    __asm__ volatile("vmsr fpexc, %0" :: "r" (val));
 }
 
 void arm_fpu_set_enable(bool enable)
@@ -57,14 +56,22 @@ void arm_fpu_set_enable(bool enable)
     write_fpexc(enable ? (1<<30) : 0);
 }
 
-#if ARM_WITH_VFP
 void arm_fpu_undefined_instruction(struct arm_iframe *frame)
 {
     thread_t *t = get_current_thread();
 
     if (unlikely(arch_in_int_handler())) {
+        int i;
+        dprintf(CRITICAL, "floating point code while some cpu is in irq context. pc 0x%x\n", frame->pc);
+        for (i = 0; i < 1000; i++) {
+            if (!arch_in_int_handler()) {
+                dprintf(CRITICAL, "arch_in_int_handler status cleared after %d reads\n", i);
+                goto false_alarm;
+            }
+        }
         panic("floating point code in irq context. pc 0x%x\n", frame->pc);
     }
+false_alarm:
 
     LTRACEF("enabling fpu on thread %p\n", t);
 
@@ -129,5 +136,3 @@ void arm_fpu_thread_swap(struct thread *oldthread, struct thread *newthread)
     }
 }
 #endif
-
-/* vim: set ts=4 sw=4 expandtab: */

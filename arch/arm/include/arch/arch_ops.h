@@ -24,12 +24,38 @@
 
 #ifndef ASSEMBLY
 
+#include <assert.h>
 #include <stdbool.h>
 #include <compiler.h>
 #include <reg.h>
 #include <arch/arm.h>
 
+#if ARM_ISA_ARMV7M
+#include <arch/arm/cm.h>
+#endif
+
 __BEGIN_CDECLS;
+
+#if ARM_MERGE_FIQ_IRQ
+
+#define CPS_MASK_INTS "if"
+#define FIQ_CHANGE(x)
+
+static inline void check_irq_fiq_state(unsigned long state)
+{
+    ASSERT(((state >> 6) & 1) == ((state >> 7) & 1));
+}
+
+#else
+
+#define CPS_MASK_INTS "i"
+#define FIQ_CHANGE(x) x
+
+static inline void check_irq_fiq_state(unsigned long state)
+{
+}
+
+#endif
 
 #if ARM_ISA_ARMV7 || (ARM_ISA_ARMV6 && !__thumb__)
 #define USE_GCC_ATOMICS 0
@@ -38,179 +64,187 @@ __BEGIN_CDECLS;
 // override of some routines
 static inline void arch_enable_ints(void)
 {
-	CF;
-	__asm__ volatile("cpsie i");
+    CF;
+    __asm__ volatile("cpsie " CPS_MASK_INTS);
 }
 
 static inline void arch_disable_ints(void)
 {
-	__asm__ volatile("cpsid i");
-	CF;
+    __asm__ volatile("cpsid " CPS_MASK_INTS);
+    CF;
 }
 
 static inline bool arch_ints_disabled(void)
 {
-	unsigned int state;
+    unsigned int state;
 
 #if ARM_ISA_ARMV7M
-	__asm__ volatile("mrs %0, primask" : "=r"(state));
-	state &= 0x1;
+    __asm__ volatile("mrs %0, primask" : "=r"(state));
+    state &= 0x1;
 #else
-	__asm__ volatile("mrs %0, cpsr" : "=r"(state));
-	state &= (1<<7);
+    __asm__ volatile("mrs %0, cpsr" : "=r"(state));
+    check_irq_fiq_state(state);
+    state &= (1<<7);
 #endif
 
-	return !!state;
+    return !!state;
 }
 
 static inline void arch_enable_fiqs(void)
 {
-	CF;
-	__asm__ volatile("cpsie f");
+    CF;
+    FIQ_CHANGE(__asm__ volatile("cpsie f"));
 }
 
 static inline void arch_disable_fiqs(void)
 {
-	__asm__ volatile("cpsid f");
-	CF;
+    FIQ_CHANGE(__asm__ volatile("cpsid f"));
+    CF;
 }
 
 static inline bool arch_fiqs_disabled(void)
 {
-	unsigned int state;
+    unsigned int state;
 
-	__asm__ volatile("mrs %0, cpsr" : "=r"(state));
-	state &= (1<<6);
+    __asm__ volatile("mrs %0, cpsr" : "=r"(state));
+    check_irq_fiq_state(state);
+    state &= (1<<6);
 
-	return !!state;
+    return !!state;
 }
 
 static inline bool arch_in_int_handler(void)
 {
-	/* set by the interrupt glue to track that the cpu is inside a handler */
-	extern bool __arm_in_handler;
+#if ARM_ISA_ARMV7M
+    uint32_t ipsr;
+    __asm volatile ("MRS %0, ipsr" : "=r" (ipsr) );
+    return (ipsr & IPSR_ISR_Msk);
+#else
+    /* set by the interrupt glue to track that the cpu is inside a handler */
+    extern bool __arm_in_handler;
 
-	return __arm_in_handler;
+    return __arm_in_handler;
+#endif
 }
 
 static inline int atomic_add(volatile int *ptr, int val)
 {
 #if USE_GCC_ATOMICS
-	return __atomic_fetch_add(ptr, val, __ATOMIC_RELAXED);
+    return __atomic_fetch_add(ptr, val, __ATOMIC_RELAXED);
 #else
-	int old;
-	int temp;
-	int test;
+    int old;
+    int temp;
+    int test;
 
-	do {
-		__asm__ volatile(
-		    "ldrex	%[old], [%[ptr]]\n"
-		    "adds	%[temp], %[old], %[val]\n"
-		    "strex	%[test], %[temp], [%[ptr]]\n"
-		    : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
-		    : [ptr]"r" (ptr), [val]"r" (val)
-		    : "memory", "cc");
+    do {
+        __asm__ volatile(
+            "ldrex	%[old], [%[ptr]]\n"
+            "adds	%[temp], %[old], %[val]\n"
+            "strex	%[test], %[temp], [%[ptr]]\n"
+            : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
+            : [ptr]"r" (ptr), [val]"r" (val)
+            : "memory", "cc");
 
-	} while (test != 0);
+    } while (test != 0);
 
-	return old;
+    return old;
 #endif
 }
 
 static inline int atomic_or(volatile int *ptr, int val)
 {
 #if USE_GCC_ATOMICS
-	return __atomic_fetch_or(ptr, val, __ATOMIC_RELAXED);
+    return __atomic_fetch_or(ptr, val, __ATOMIC_RELAXED);
 #else
-	int old;
-	int temp;
-	int test;
+    int old;
+    int temp;
+    int test;
 
-	do {
-		__asm__ volatile(
-		    "ldrex	%[old], [%[ptr]]\n"
-		    "orrs	%[temp], %[old], %[val]\n"
-		    "strex	%[test], %[temp], [%[ptr]]\n"
-		    : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
-		    : [ptr]"r" (ptr), [val]"r" (val)
-		    : "memory", "cc");
+    do {
+        __asm__ volatile(
+            "ldrex	%[old], [%[ptr]]\n"
+            "orrs	%[temp], %[old], %[val]\n"
+            "strex	%[test], %[temp], [%[ptr]]\n"
+            : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
+            : [ptr]"r" (ptr), [val]"r" (val)
+            : "memory", "cc");
 
-	} while (test != 0);
+    } while (test != 0);
 
-	return old;
+    return old;
 #endif
 }
 
 static inline int atomic_and(volatile int *ptr, int val)
 {
 #if USE_GCC_ATOMICS
-	return __atomic_fetch_and(ptr, val, __ATOMIC_RELAXED);
+    return __atomic_fetch_and(ptr, val, __ATOMIC_RELAXED);
 #else
-	int old;
-	int temp;
-	int test;
+    int old;
+    int temp;
+    int test;
 
-	do {
-		__asm__ volatile(
-		    "ldrex	%[old], [%[ptr]]\n"
-		    "ands	%[temp], %[old], %[val]\n"
-		    "strex	%[test], %[temp], [%[ptr]]\n"
-		    : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
-		    : [ptr]"r" (ptr), [val]"r" (val)
-		    : "memory", "cc");
+    do {
+        __asm__ volatile(
+            "ldrex	%[old], [%[ptr]]\n"
+            "ands	%[temp], %[old], %[val]\n"
+            "strex	%[test], %[temp], [%[ptr]]\n"
+            : [old]"=&r" (old), [temp]"=&r" (temp), [test]"=&r" (test)
+            : [ptr]"r" (ptr), [val]"r" (val)
+            : "memory", "cc");
 
-	} while (test != 0);
+    } while (test != 0);
 
-	return old;
+    return old;
 #endif
 }
 
 static inline int atomic_swap(volatile int *ptr, int val)
 {
 #if USE_GCC_ATOMICS
-	return __atomic_exchange_n(ptr, val, __ATOMIC_RELAXED);
+    return __atomic_exchange_n(ptr, val, __ATOMIC_RELAXED);
 #else
-	int old;
-	int test;
+    int old;
+    int test;
 
-	do {
-		__asm__ volatile(
-		    "ldrex	%[old], [%[ptr]]\n"
-		    "strex	%[test], %[val], [%[ptr]]\n"
-		    : [old]"=&r" (old), [test]"=&r" (test)
-		    : [ptr]"r" (ptr), [val]"r" (val)
-		    : "memory");
+    do {
+        __asm__ volatile(
+            "ldrex	%[old], [%[ptr]]\n"
+            "strex	%[test], %[val], [%[ptr]]\n"
+            : [old]"=&r" (old), [test]"=&r" (test)
+            : [ptr]"r" (ptr), [val]"r" (val)
+            : "memory");
 
-	} while (test != 0);
+    } while (test != 0);
 
-	return old;
+    return old;
 #endif
 }
 
 static inline int atomic_cmpxchg(volatile int *ptr, int oldval, int newval)
 {
-	int old;
-	int test;
+    int old;
+    int test;
 
-	do {
-		__asm__ volatile(
-		    "ldrex	%[old], [%[ptr]]\n"
-		    "mov	%[test], #0\n"
-		    "teq	%[old], %[oldval]\n"
+    do {
+        __asm__ volatile(
+            "ldrex	%[old], [%[ptr]]\n"
+            "mov	%[test], #0\n"
+            "teq	%[old], %[oldval]\n"
 #if (ARM_ISA_ARMV7M || __thumb__)
-		    "bne	0f\n"
-		    "strex	%[test], %[newval], [%[ptr]]\n"
-		    "0:\n"
+            "bne	0f\n"
+            "strex	%[test], %[newval], [%[ptr]]\n"
+            "0:\n"
 #else
-		    "strexeq %[test], %[newval], [%[ptr]]\n"
+            "strexeq %[test], %[newval], [%[ptr]]\n"
 #endif
-		    : [old]"=&r" (old), [test]"=&r" (test)
-		    : [ptr]"r" (ptr), [oldval]"Ir" (oldval), [newval]"r" (newval)
-		    : "cc");
+            : [old]"=&r" (old), [test]"=&r" (test)
+            : [ptr]"r" (ptr), [oldval]"Ir" (oldval), [newval]"r" (newval)
+            : "cc");
 
-	} while (test != 0);
+    } while (test != 0);
 
-	return old;
+    return old;
 }
 
 static inline uint32_t arch_cycle_count(void)
@@ -218,27 +252,27 @@ static inline uint32_t arch_cycle_count(void)
 #if ARM_ISA_ARMV7M
 #if ENABLE_CYCLE_COUNTER
 #define DWT_CYCCNT (0xE0001004)
-	return *REG32(DWT_CYCCNT);
+    return *REG32(DWT_CYCCNT);
 #else
-	return 0;
+    return 0;
 #endif
 #elif ARM_ISA_ARMV7
-	uint32_t count;
-	__asm__ volatile("mrc		p15, 0, %0, c9, c13, 0"
-		: "=r" (count)
-		);
-	return count;
+    uint32_t count;
+    __asm__ volatile("mrc		p15, 0, %0, c9, c13, 0"
+                     : "=r" (count)
+                    );
+    return count;
 #else
 //#warning no arch_cycle_count implementation
-	return 0;
+    return 0;
 #endif
 }
 
 #if WITH_SMP && ARM_ISA_ARMV7
+extern uint arm_curr_cpu_num(void);
 static inline uint arch_curr_cpu_num(void)
 {
-    uint32_t mpidr = arm_read_mpidr();
-    return ((mpidr & ((1U << SMP_CPU_ID_BITS) - 1)) >> 8 << SMP_CPU_CLUSTER_SHIFT) | (mpidr & 0xff);
+    return arm_curr_cpu_num();
 }
 #else
 static inline uint arch_curr_cpu_num(void)
@@ -276,6 +310,148 @@ static inline void set_current_thread(struct thread *t)
 }
 
 #endif // !ARM_ISA_ARMV7M
+
+#elif ARM_ISA_ARMV6M // cortex-m0 cortex-m0+
+
+
+static inline void arch_enable_fiqs(void)
+{
+    CF;
+    __asm__ volatile("cpsie f");
+}
+
+static inline void arch_disable_fiqs(void)
+{
+    __asm__ volatile("cpsid f");
+    CF;
+}
+
+static inline bool arch_fiqs_disabled(void)
+{
+    unsigned int state;
+
+    __asm__ volatile("mrs %0, cpsr" : "=r"(state));
+    state &= (1<<6);
+
+    return !!state;
+}
+
+
+
+static inline void arch_enable_ints(void)
+{
+    CF;
+    __asm__ volatile("cpsie i");
+}
+static inline void arch_disable_ints(void)
+{
+    __asm__ volatile("cpsid i");
+    CF;
+}
+
+static inline bool arch_ints_disabled(void)
+{
+    unsigned int state;
+
+    __asm__ volatile("mrs %0, primask" : "=r"(state));
+    state &= 0x1;
+    return !!state;
+}
+
+static inline int atomic_add(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp + val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline  int atomic_and(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp & val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline int atomic_or(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = temp | val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline int atomic_swap(volatile int *ptr, int val)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    *ptr = val;
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline int atomic_cmpxchg(volatile int *ptr, int oldval, int newval)
+{
+    int temp;
+    bool state;
+
+    state = arch_ints_disabled();
+    arch_disable_ints();
+    temp = *ptr;
+    if (temp == oldval) {
+        *ptr = newval;
+    }
+    if (!state)
+        arch_enable_ints();
+    return temp;
+}
+
+static inline uint32_t arch_cycle_count(void)
+{
+    return 0;
+}
+
+static inline uint arch_curr_cpu_num(void)
+{
+    return 0;
+}
+
+/* use a global pointer to store the current_thread */
+extern struct thread *_current_thread;
+
+static inline struct thread *get_current_thread(void)
+{
+    return _current_thread;
+}
+
+static inline void set_current_thread(struct thread *t)
+{
+    _current_thread = t;
+}
 
 #else // pre-armv6 || (armv6 & thumb)
 
@@ -322,4 +498,3 @@ static inline uint32_t arch_cycle_count(void) { return _arch_cycle_count(); }
 __END_CDECLS;
 
 #endif // ASSEMBLY
-

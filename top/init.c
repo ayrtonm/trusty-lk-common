@@ -35,9 +35,10 @@
 #include <trace.h>
 
 #define LOCAL_TRACE 0
-#define TRACE_INIT (LK_DEBUGLEVEL >= 2)
+#define TRACE_INIT 0
+#define TRACE_INIT_FLAGS (LK_INIT_FLAG_ALL_CPUS)
 #ifndef EARLIEST_TRACE_LEVEL
-#define EARLIEST_TRACE_LEVEL LK_INIT_LEVEL_ARCH_EARLY
+#define EARLIEST_TRACE_LEVEL LK_INIT_LEVEL_TARGET_EARLY
 #endif
 
 extern const struct lk_init_struct __lk_init[];
@@ -93,7 +94,7 @@ void lk_init_level(enum lk_init_flags required_flag, uint start_level, uint stop
             break;
 
 #if TRACE_INIT
-        if (found->level >= EARLIEST_TRACE_LEVEL) {
+        if (found->level >= EARLIEST_TRACE_LEVEL && (required_flag & TRACE_INIT_FLAGS)) {
             printf("INIT: cpu %d, calling hook %p (%s) at level %#x, flags %#x\n",
                    arch_curr_cpu_num(), found->hook, found->name, found->level, found->flags);
         }

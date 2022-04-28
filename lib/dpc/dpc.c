@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Travis Geiselbrecht
+ * Copyright (c) 2019 Google, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -20,76 +21,117 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <assert.h>
 #include <debug.h>
-#include <stddef.h>
-#include <list.h>
-#include <malloc.h>
-#include <err.h>
-#include <lib/dpc.h>
-#include <kernel/thread.h>
 #include <kernel/event.h>
+#include <kernel/spinlock.h>
+#include <kernel/thread.h>
+#include <lib/dpc.h>
 #include <lk/init.h>
+#include <lk/list.h>
+#include <malloc.h>
+#include <stddef.h>
+#include <trace.h>
+#include <uapi/err.h>
 
-struct dpc {
-	struct list_node node;
+#define LOCAL_TRACE 0
 
-	dpc_callback cb;
-	void *arg;
+struct dpc_queue {
+    struct list_node list;
+    struct event event;
+    spin_lock_t lock;
+    struct thread* thread;
 };
 
-static struct list_node dpc_list = LIST_INITIAL_VALUE(dpc_list);
-static event_t dpc_event;
+static struct dpc_queue default_queue;
 
-static int dpc_thread_routine(void *arg);
+static int dpc_thread_routine(void* arg);
 
-status_t dpc_queue(dpc_callback cb, void *arg, uint flags)
-{
-	struct dpc *dpc;
+void dpc_work_init(struct dpc* work, dpc_callback cb, uint32_t flags) {
+    ASSERT(work);
 
-	dpc = malloc(sizeof(struct dpc));
-
-	if (dpc == NULL)
-		return ERR_NO_MEMORY;
-
-	dpc->cb = cb;
-	dpc->arg = arg;
-	enter_critical_section();
-	list_add_tail(&dpc_list, &dpc->node);
-	event_signal(&dpc_event, (flags & DPC_FLAG_NORESCHED) ? false : true);
-	exit_critical_section();
-
-	return NO_ERROR;
+    list_clear_node(&work->node);
+    work->cb = cb;
+    work->q = NULL;
 }
 
-static int dpc_thread_routine(void *arg)
-{
-	for (;;) {
-		event_wait(&dpc_event);
+int dpc_enqueue_work(struct dpc_queue* q, struct dpc* work, bool resched) {
+    spin_lock_saved_state_t state;
 
-		enter_critical_section();
-		struct dpc *dpc = list_remove_head_type(&dpc_list, struct dpc, node);
-		if (!dpc)
-			event_unsignal(&dpc_event);
-		exit_critical_section();
+    ASSERT(work);
+    ASSERT(work->cb);
 
-		if (dpc) {
-//			dprintf("dpc calling %p, arg %p\n", dpc->cb, dpc->arg);
-			dpc->cb(dpc->arg);
+    if (!q) {
+        q = &default_queue;
+    }
 
-			free(dpc);
-		}
-	}
-
-	return 0;
+    spin_lock_irqsave(&q->lock, state);
+    ASSERT(!work->q || (work->q == q));
+    if (!list_in_list(&work->node)) {
+        list_add_tail(&q->list, &work->node);
+        work->q = q;
+    }
+    spin_unlock_irqrestore(&q->lock, state);
+    event_signal(&q->event, resched);
+    return 0;
 }
 
-static void dpc_init(uint level)
-{
-	event_init(&dpc_event, false, 0);
+static int dpc_thread_routine(void* arg) {
+    struct dpc* work;
+    struct dpc_queue* q = arg;
+    spin_lock_saved_state_t state;
 
-	thread_detach_and_resume(thread_create("dpc", &dpc_thread_routine, NULL, DPC_PRIORITY, DEFAULT_STACK_SIZE));
+    DEBUG_ASSERT(q);
+
+    for (;;) {
+        event_wait(&q->event);
+        do {
+            spin_lock_irqsave(&q->lock, state);
+            work = list_remove_head_type(&q->list, struct dpc, node);
+            spin_unlock_irqrestore(&q->lock, state);
+
+            if (work) {
+                LTRACEF("dpc calling %p\n", work->cb);
+                work->cb(work);
+            }
+        } while (work);
+    }
+
+    return 0;
+}
+
+status_t dpc_queue_start(struct dpc_queue* q,
+                         const char* name,
+                         int thread_priority,
+                         size_t thread_stack_size) {
+    DEBUG_ASSERT(q);
+    DEBUG_ASSERT(!q->thread);
+
+    /* Initiliaze queue */
+    spin_lock_init(&q->lock);
+    list_initialize(&q->list);
+    event_init(&q->event, false, EVENT_FLAG_AUTOUNSIGNAL);
+
+    /* create thread */
+    q->thread = thread_create(name, dpc_thread_routine, q, thread_priority,
+                              thread_stack_size);
+    if (!q->thread)
+        return ERR_NO_MEMORY;
+
+    /* start thread */
+    thread_detach_and_resume(q->thread);
+    return 0;
+}
+
+static void dpc_init(uint level) {
+    status_t rc;
+
+    /* init and start default DPC queue */
+    rc = dpc_queue_start(&default_queue, "dpc", DPC_PRIORITY,
+                         DEFAULT_STACK_SIZE);
+    if (rc != NO_ERROR) {
+        panic("failed to start default dpc queue\n");
+    }
 }
 
 LK_INIT_HOOK(libdpc, &dpc_init, LK_INIT_LEVEL_THREADING);
-
-

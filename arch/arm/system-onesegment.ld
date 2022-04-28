@@ -57,15 +57,6 @@ SECTIONS
         *(.rodata .rodata.* .gnu.linkonce.r.*)
     }
 
-    .data : ALIGN(4) {
-        __rodata_end = .;
-        /* writable data  */
-        __data_start_rom = .;
-        /* in one segment binaries, the rom data address is on top of the ram data address */
-        __data_start = .;
-        *(.data .data.* .gnu.linkonce.d.*)
-    }
-
     .ctors : ALIGN(4) {
         __ctor_list = .;
         KEEP(*(.ctors .init_array))
@@ -76,13 +67,38 @@ SECTIONS
         KEEP(*(.dtors .fini_array))
         __dtor_end = .;
     }
+
+    /*
+     * extra linker scripts tend to insert sections just after .rodata,
+     * so we want to make sure this symbol comes after anything inserted above,
+     * but not aligned to the next section necessarily.
+     */
+    .fake_post_rodata : {
+        __rodata_end = .;
+    }
+
+    .data : ALIGN(4) {
+        /* writable data  */
+        __data_start_rom = .;
+        /* in one segment binaries, the rom data address is on top of the ram data address */
+        __data_start = .;
+        *(.data .data.* .gnu.linkonce.d.*)
+    }
+
     .got : { *(.got.plt) *(.got) }
     .dynamic : { *(.dynamic) }
 
-    /* unintialized data (in same segment as writable data) */
-    .bss : ALIGN(4) {
+    /*
+     * extra linker scripts tend to insert sections just after .data,
+     * so we want to make sure this symbol comes after anything inserted above,
+     * but not aligned to the next section necessarily.
+     */
+    .fake_post_data : {
         __data_end = .;
+    }
 
+    /* uninitialized data (in same segment as writable data) */
+    .bss : ALIGN(4) {
         KEEP(*(.bss.prebss.*))
         . = ALIGN(4);
         __bss_start = .;

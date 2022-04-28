@@ -22,12 +22,17 @@
  */
 #pragma once
 
-.macro push ra, rb
-stp \ra, \rb, [sp,#-16]!
+.macro push ra, rb, rsp=sp, prealloc=0
+    stp     \ra, \rb, [\rsp,#-(16 + \prealloc)]!
 .endm
 
-.macro pop ra, rb
-ldp \ra, \rb, [sp], #16
+.macro pop ra, rb, rsp=sp, postfree=0
+    ldp     \ra, \rb, [\rsp], #(16 + \postfree)
+.endm
+
+.macro adrl reg, sym
+    adrp    \reg, \sym
+    add     \reg, \reg, #:lo12:\sym
 .endm
 
 .macro tbzmask, reg, mask, label, shift=0
@@ -72,11 +77,9 @@ ldp \ra, \rb, [sp], #16
     add     \new_ptr_end, \new_ptr, #(1 << \size_shift)
     str     \new_ptr_end, [\tmp, #:lo12:boot_alloc_end]
 
-.if \phys_offset != 0
-    /* clear page */
+    /* translate address */
     sub     \new_ptr, \new_ptr, \phys_offset
     sub     \new_ptr_end, \new_ptr_end, \phys_offset
-.endif
 
     /* clear page */
     mov     \tmp, \new_ptr
@@ -90,7 +93,7 @@ ldp \ra, \rb, [sp], #16
 .macro set_fault_handler, handler
 .Lfault_location\@:
 .pushsection .rodata.fault_handler_table
-    .quad    .Lfault_location\@
-    .quad    \handler
+    .quad    .Lfault_location\@ - .
+    .quad    \handler - .
 .popsection
 .endm

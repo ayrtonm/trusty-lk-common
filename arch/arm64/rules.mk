@@ -7,9 +7,6 @@ GLOBAL_DEFINES += \
 	ARM_ISA_ARMV8=1 \
 	IS_64BIT=1
 
-GLOBAL_INCLUDES += \
-	$(LOCAL_DIR)/include
-
 MODULE_SRCS += \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/asm.S \
@@ -20,6 +17,8 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/spinlock.S \
 	$(LOCAL_DIR)/start.S \
 	$(LOCAL_DIR)/cache-ops.S \
+	$(LOCAL_DIR)/usercopy.S \
+	$(LOCAL_DIR)/safecopy.S \
 
 #	$(LOCAL_DIR)/arm/start.S \
 	$(LOCAL_DIR)/arm/cache.c \
@@ -27,8 +26,17 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm/faults.c \
 	$(LOCAL_DIR)/arm/dcc.S
 
+MODULE_DEPS += \
+	trusty/kernel/lib/trusty \
+
 GLOBAL_DEFINES += \
 	ARCH_DEFAULT_STACK_SIZE=4096
+
+ARCH_DEFAULT_SHADOW_STACK_SIZE := 4096
+ifeq (true,$(call TOBOOL,$(KERNEL_SCS_ENABLED)))
+GLOBAL_DEFINES += \
+	ARCH_DEFAULT_SHADOW_STACK_SIZE=$(ARCH_DEFAULT_SHADOW_STACK_SIZE)
+endif
 
 # if its requested we build with SMP, arm generically supports 4 cpus
 ifeq ($(WITH_SMP),1)
@@ -60,12 +68,26 @@ endif
 
 ARCH_OPTFLAGS := -O2
 
+# Set ARM_MERGE_FIQ_IRQ to remove separation between IRQs and FIQs. This is
+# for GICv3 or GICv4 when running in trustzone as the non-secure interrupts
+# will be delivered as FIQs instead of IRQs.
+ARM_MERGE_FIQ_IRQ ?= false
+
+ifeq (true,$(call TOBOOL,$(ARM_MERGE_FIQ_IRQ)))
+GLOBAL_DEFINES += ARM_MERGE_FIQ_IRQ=1
+endif
+
+
+# Declare ARM64 architecture has FIQ
+GLOBAL_DEFINES += ARCH_HAS_FIQ=1
+
 # we have a mmu and want the vmm/pmm
 WITH_KERNEL_VM ?= 1
 
 ifeq ($(WITH_KERNEL_VM),1)
 
 MODULE_SRCS += \
+	$(LOCAL_DIR)/early_mmu.c \
 	$(LOCAL_DIR)/mmu.c
 
 KERNEL_ASPACE_BASE ?= 0xffff000000000000
@@ -86,6 +108,9 @@ GLOBAL_DEFINES += \
     KERNEL_BASE=$(KERNEL_BASE) \
     KERNEL_LOAD_OFFSET=$(KERNEL_LOAD_OFFSET)
 
+# we need the kernel to be PIE since we're relocating it
+PIE_KERNEL ?= true
+
 else
 
 KERNEL_BASE ?= $(MEMBASE)
@@ -93,6 +118,9 @@ KERNEL_LOAD_OFFSET ?= 0
 
 endif
 
+GLOBAL_DEFINES += \
+	MEMBASE=$(MEMBASE) \
+	MEMSIZE=$(MEMSIZE)
 
 # try to find the toolchain
 include $(LOCAL_DIR)/toolchain.mk
@@ -100,6 +128,9 @@ TOOLCHAIN_PREFIX := $(ARCH_$(ARCH)_TOOLCHAIN_PREFIX)
 $(info TOOLCHAIN_PREFIX = $(TOOLCHAIN_PREFIX))
 
 ARCH_COMPILEFLAGS += $(ARCH_$(ARCH)_COMPILEFLAGS)
+
+GLOBAL_LDFLAGS += -z max-page-size=4096
+
 
 # make sure some bits were set up
 MEMVARS_SET := 0
@@ -112,8 +143,6 @@ endif
 ifeq ($(MEMVARS_SET),0)
 $(error missing MEMBASE or MEMSIZE variable, please set in target rules.mk)
 endif
-
-LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) -print-libgcc-file-name)
 
 # potentially generated files that should be cleaned out with clean make rule
 GENERATED += \

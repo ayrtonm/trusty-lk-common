@@ -20,69 +20,127 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <debug.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 #include <sys/types.h>
-#include <platform/debug.h>
 
-int fputc(int c, FILE *fp)
+#define DEFINE_STDIO_DESC(id)   \
+    [(id)]  = {                 \
+        .io = &console_io,      \
+    }
+
+__WEAK FILE __stdio_FILEs[3] = {
+    DEFINE_STDIO_DESC(0), /* stdin */
+    DEFINE_STDIO_DESC(1), /* stdout */
+    DEFINE_STDIO_DESC(2), /* stderr */
+};
+#undef DEFINE_STDIO_DESC
+
+static size_t lock_write_commit_unlock(FILE *fp, const char* s, size_t length)
 {
-	return fp->fputc(fp->ctx, c);
+    size_t bytes_written;
+    io_lock(fp->io);
+    bytes_written = io_write(fp->io, s, length);
+    io_write_commit(fp->io);
+    io_unlock(fp->io);
+    return bytes_written;
+}
+
+int fputc(int _c, FILE *fp)
+{
+    unsigned char c = _c;
+    return lock_write_commit_unlock(fp, (char *)&c, 1);
 }
 
 int putchar(int c)
 {
-	return fputc(c, stdout);
+    return fputc(c, stdout);
 }
 
 int puts(const char *str)
 {
-	int err = fputs(str, stdout);
-	if (err >= 0)
-		err = fputc('\n', stdout);
-	return err;
+    int err = fputs(str, stdout);
+    if (err >= 0)
+        err = fputc('\n', stdout);
+    return err;
 }
 
 int fputs(const char *s, FILE *fp)
 {
-	return fp->fputs(fp->ctx, s);
+    size_t len = strlen(s);
+    return lock_write_commit_unlock(fp, s, len);
+}
+
+size_t fwrite(const void *ptr, size_t size, size_t count, FILE *fp)
+{
+    size_t bytes_written;
+
+    if (size == 0 || count == 0)
+        return 0;
+
+    // fast path for size == 1
+    if (likely(size == 1)) {
+        return lock_write_commit_unlock(fp, ptr, count);
+    }
+
+    bytes_written = lock_write_commit_unlock(fp, ptr, size * count);
+    return bytes_written / size;
 }
 
 int getc(FILE *fp)
 {
-	return fp->fgetc(fp->ctx);
+    char c;
+    ssize_t ret = io_read(fp->io, &c, sizeof(c));
+
+    return (ret > 0) ? c : ret;
 }
 
 int getchar(void)
 {
-	return getc(stdin);
+    return getc(stdin);
+}
+
+static int _fprintf_output_func(const char *str, size_t len, void *state)
+{
+    FILE *fp = (FILE *)state;
+
+    return io_write(fp->io, str, len);
 }
 
 int vfprintf(FILE *fp, const char *fmt, va_list ap)
 {
-	return fp->vfprintf(fp->ctx, fmt, ap);
+    io_lock(fp->io);
+    int result = _printf_engine(&_fprintf_output_func, (void *)fp, fmt, ap);
+    io_write_commit(fp->io);
+    io_unlock(fp->io);
+    return result;
 }
 
 int fprintf(FILE *fp, const char *fmt, ...)
 {
-	va_list ap;
-	int err;
+    va_list ap;
+    int err;
 
-	va_start(ap, fmt);
-	err = vfprintf(fp, fmt, ap);
-	va_end(ap);
-	return err;
+    va_start(ap, fmt);
+    err = vfprintf(fp, fmt, ap);
+    va_end(ap);
+    return err;
 }
 
 int _printf(const char *fmt, ...)
 {
-	va_list ap;
-	int err;
+    va_list ap;
+    int err;
 
-	va_start(ap, fmt);
-	err = vfprintf(stdout, fmt, ap);
-	va_end(ap);
+    va_start(ap, fmt);
+    err = vfprintf(stdout, fmt, ap);
+    va_end(ap);
 
-	return err;
+    return err;
+}
+
+int _vprintf(const char *fmt, va_list ap)
+{
+    return vfprintf(stdout, fmt, ap);
 }

@@ -153,7 +153,7 @@ status_t klog_create(void *_ptr, size_t len, uint count)
     /* set up each buffer */
     uint bufsize = len - sizeof(struct klog_buffer_header) - sizeof(struct klog_header) * count;
     bufsize /= count;
-    bufsize = ROUNDDOWN(bufsize, 4);
+    bufsize = round_down(bufsize, 4);
     while (count > 0) {
         klog = (struct klog_header *)ptr;
         klog->magic = KLOG_HEADER_MAGIC;
@@ -191,7 +191,7 @@ ssize_t klog_recover(void *_ptr)
     if (crc != kbuf->header_crc32)
         return ERR_NOT_FOUND;
 
-    /* some sanity checks */
+    /* initial checks */
     if (kbuf->total_size > MAX_KLOG_SIZE)
         return ERR_NOT_FOUND;
     if (kbuf->current_log >= kbuf->log_count)

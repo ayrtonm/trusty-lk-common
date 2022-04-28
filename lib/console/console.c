@@ -39,6 +39,11 @@
 #define CONSOLE_ENABLE_HISTORY 1
 #endif
 
+// Whether to enable "repeat" command.
+#ifndef CONSOLE_ENABLE_REPEAT
+#define CONSOLE_ENABLE_REPEAT 1
+#endif
+
 #define LINE_LEN 128
 
 #define PANIC_LINE_LEN 32
@@ -81,8 +86,8 @@ static cmd_block *command_list = NULL;
 /* a linear array of statically defined command blocks,
    defined in the linker script.
  */
-extern cmd_block __commands_start;
-extern cmd_block __commands_end;
+extern cmd_block __commands_start[];
+extern cmd_block __commands_end[];
 
 static int cmd_help(int argc, const cmd_args *argv);
 static int cmd_help_panic(int argc, const cmd_args *argv);
@@ -90,6 +95,9 @@ static int cmd_echo(int argc, const cmd_args *argv);
 static int cmd_test(int argc, const cmd_args *argv);
 #if CONSOLE_ENABLE_HISTORY
 static int cmd_history(int argc, const cmd_args *argv);
+#endif
+#if CONSOLE_ENABLE_REPEAT
+static int cmd_repeat(int argc, const cmd_args *argv);
 #endif
 
 STATIC_COMMAND_START
@@ -100,6 +108,9 @@ STATIC_COMMAND("echo", NULL, &cmd_echo)
 STATIC_COMMAND("test", "test the command processor", &cmd_test)
 #if CONSOLE_ENABLE_HISTORY
 STATIC_COMMAND("history", "command history", &cmd_history)
+#endif
+#if CONSOLE_ENABLE_REPEAT
+STATIC_COMMAND("repeat", "repeats command multiple times", &cmd_repeat)
 #endif
 #endif
 STATIC_COMMAND_END(help);
@@ -113,7 +124,7 @@ int console_init(void)
 
     /* add all the statically defined commands to the list */
     cmd_block *block;
-    for (block = &__commands_start; block != &__commands_end; block++) {
+    for (block = __commands_start; block != __commands_end; block++) {
         console_register_commands(block);
     }
 
@@ -215,7 +226,52 @@ static const char *prev_history(uint *cursor)
     *cursor = i;
     return str;
 }
-#endif
+#endif  // CONSOLE_ENABLE_HISTORY
+
+#if CONSOLE_ENABLE_REPEAT
+static int cmd_repeat(int argc, const cmd_args* argv)
+{
+    if (argc < 4) goto usage;
+    int times = argv[1].i;
+    int delay = argv[2].i;
+    if (times <= 0) goto usage;
+    if (delay < 0) goto usage;
+
+    // Worst case line length with quoting.
+    char line[LINE_LEN + MAX_NUM_ARGS * 3];
+
+    // Paste together all arguments, and quote them.
+    int idx = 0;
+    for (int i = 3; i < argc; ++i) {
+        if (i != 3) {
+            // Add a space before all args but the first.
+            line[idx++] = ' ';
+        }
+        line[idx++] = '"';
+        for (const char* src = argv[i].str; *src != '\0'; src++) {
+            line[idx++] = *src;
+        }
+        line[idx++] = '"';
+    }
+    line[idx] = '\0';
+
+    for (int i = 0; i < times; ++i) {
+        printf("[%d/%d]\n", i + 1, times);
+        int result = console_run_script_locked(line);
+        if (result != 0) {
+            printf("terminating repeat loop, command exited with status %d\n",
+                    result);
+            return result;
+        }
+        thread_sleep(delay);
+    }
+    return NO_ERROR;
+
+usage:
+    printf("Usage: repeat <times> <delay in ms> <cmd> [args..]\n");
+    return ERR_INVALID_ARGS;
+}
+#endif  // CONSOLE_ENABLE_REPEAT
 
 static const cmd *match_command(const char *command, const uint8_t availability_mask)
 {
@@ -267,9 +323,7 @@ static int read_debug_line(const char **outbuffer, void *cookie)
                 case 0x8:
                     if (pos > 0) {
                         pos--;
-                        fputc('\b', stdout);
-                        putchar(' ');
-                        fputc('\b', stdout); // move to the left one
+                        fputs("\b \b", stdout); // wipe out a character
                     }
                     break;
 
@@ -301,9 +355,7 @@ static int read_debug_line(const char **outbuffer, void *cookie)
                     if (pos > 0) {
                         pos--;
                         if (echo) {
-                            fputc('\b', stdout); // move to the left one
-                            putchar(' ');
-                            fputc('\b', stdout); // move to the left one
+                            fputs("\b \b", stdout); // wipe out a character
                         }
                     }
                     break;
@@ -314,9 +366,7 @@ static int read_debug_line(const char **outbuffer, void *cookie)
                     while (pos > 0) {
                         pos--;
                         if (echo) {
-                            fputc('\b', stdout); // move to the left one
-                            putchar(' ');
-                            fputc('\b', stdout); // move to the left one
+                            fputs("\b \b", stdout); // wipe out a character
                         }
                     }
 
@@ -538,7 +588,9 @@ static void convert_args(int argc, cmd_args *argv)
     int i;
 
     for (i = 0; i < argc; i++) {
-        argv[i].u = atoul(argv[i].str);
+        unsigned long u = atoul(argv[i].str);
+        argv[i].u = u;
+        argv[i].p = (void *)u;
         argv[i].i = atol(argv[i].str);
 
         if (!strcmp(argv[i].str, "true") || !strcmp(argv[i].str, "on")) {
@@ -804,7 +856,7 @@ static int cmd_echo(int argc, const cmd_args *argv)
     return NO_ERROR;
 }
 
-static void read_line_panic(char* buffer, const size_t len, FILE* panic_fd)
+static void read_line_panic(char *buffer, const size_t len, FILE *panic_fd)
 {
     size_t pos = 0;
 
@@ -823,9 +875,7 @@ static void read_line_panic(char* buffer, const size_t len, FILE* panic_fd)
             case 0x8:
                 if (pos > 0) {
                     pos--;
-                    fputc('\b', stdout);
-                    fputc(' ', panic_fd);
-                    fputc('\b', stdout); // move to the left one
+                    fputs("\b \b", panic_fd); // wipe out a character
                 }
                 break;
             default:
@@ -850,15 +900,16 @@ void panic_shell_start(void)
 
     // panic_fd allows us to do I/O using the polling drivers.
     // These drivers function even if interrupts are disabled.
-    FILE _panic_fd = get_panic_fd();
-    FILE *panic_fd = &_panic_fd;
+    FILE *panic_fd = get_panic_fd();
+    if (!panic_fd)
+        return;
 
     for (;;) {
         fputs("! ", panic_fd);
         read_line_panic(input_buffer, PANIC_LINE_LEN, panic_fd);
 
         int argc;
-        char* tok = strtok(input_buffer, WHITESPACE);
+        char *tok = strtok(input_buffer, WHITESPACE);
         for (argc = 0; argc < MAX_NUM_ARGS; argc++) {
             if (tok == NULL) {
                 break;
@@ -873,7 +924,7 @@ void panic_shell_start(void)
 
         convert_args(argc, args);
 
-        const cmd* command = match_command(args[0].str, CMD_AVAIL_PANIC);
+        const cmd *command = match_command(args[0].str, CMD_AVAIL_PANIC);
         if (!command) {
             fputs("command not found\n", panic_fd);
             continue;

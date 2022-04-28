@@ -32,7 +32,10 @@ FUNCTION(arm64_context_switch)
     push x22, x23
     push x20, x21
     push x18, x19
-    str  x30, [sp,#-8]!
+    mrs  x18, tpidr_el0
+    mrs  x19, tpidrro_el0
+    push x18, x19
+    push x30, xzr
 
     /* save old sp */
     mov  x15, sp
@@ -42,7 +45,10 @@ FUNCTION(arm64_context_switch)
     mov  sp, x1
 
     /* restore new frame */
-    ldr  x30, [sp], #8
+    pop  x30, xzr
+    pop  x18, x19
+    msr  tpidr_el0, x18
+    msr  tpidrro_el0, x19
     pop  x18, x19
     pop  x20, x21
     pop  x22, x23
@@ -83,5 +89,68 @@ FUNCTION(arm64_el3_to_el1)
 
     eret
 
+FUNCTION(arm64_elX_to_el1)
+    mrs x4, CurrentEL
+
+    cmp x4, #(0b01 << 2)
+    bne .notEL1
+    /* Already in EL1 */
+    ret 
+
+.notEL1:
+    cmp x4, #(0b10 << 2)
+    beq .inEL2
+
+
+    /* set EL2 to 64bit */
+    mrs x4, scr_el3
+    orr x4, x4, #(1<<10)
+    msr scr_el3, x4
+
+
+    adr x4, .Ltarget
+    msr elr_el3, x4
+
+    mov x4, #((0b1111 << 6) | (0b0101)) /* EL1h runlevel */
+    msr spsr_el3, x4
+    b   .confEL1
+
+.inEL2:
+    adr x4, .Ltarget
+    msr elr_el2, x4
+    mov x4, #((0b1111 << 6) | (0b0101)) /* EL1h runlevel */
+    msr spsr_el2, x4
+
+
+
+.confEL1:
+    /* disable EL2 coprocessor traps */
+    mov x0, #0x33ff
+    msr cptr_el2, x0
+
+    /* set EL1 to 64bit */
+    mov x0, #(1<<31)
+    msr hcr_el2, x0
+
+    /* disable EL1 FPU traps */
+    mov x0, #(0b11<<20)
+    msr cpacr_el1, x0
+
+    /* set up the EL1 bounce interrupt */
+    mov x0, sp
+    msr sp_el1, x0
+
+    isb
+    eret
+
+
 .Ltarget:
     ret
+
+/* void platform_early_halt(void); */
+WEAK_FUNCTION(platform_early_halt)
+    /* Disable interrupts and FIQs */
+    msr daifset, #3
+
+    /* Infinite loop */
+    b   .

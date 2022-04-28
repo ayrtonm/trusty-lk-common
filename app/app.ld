@@ -1,8 +1,8 @@
 SECTIONS {
-    .apps ALIGN(8) : {
+    .apps : {
         __apps_start = .;
         KEEP (*(.apps))
         __apps_end = .;
     }
 }
-INSERT AFTER .data;
+INSERT AFTER .rodata;

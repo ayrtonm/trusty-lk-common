@@ -39,6 +39,10 @@ const uint ITER = 1024;
 __NO_INLINE static void bench_set_overhead(void)
 {
     uint32_t *buf = malloc(BUFSIZE);
+    if (!buf) {
+        printf("failed to allocate buffer\n");
+        return;
+    }
 
     uint count = arch_cycle_count();
     for (uint i = 0; i < ITER; i++) {
@@ -55,6 +59,10 @@ __NO_INLINE static void bench_set_overhead(void)
 __NO_INLINE static void bench_memset(void)
 {
     void *buf = malloc(BUFSIZE);
+    if (!buf) {
+        printf("failed to allocate buffer\n");
+        return;
+    }
 
     uint count = arch_cycle_count();
     for (uint i = 0; i < ITER; i++) {
@@ -72,6 +80,10 @@ __NO_INLINE static void bench_memset(void)
 __NO_INLINE static void bench_cset_##type(void) \
 { \
     type *buf = malloc(BUFSIZE); \
+    if (!buf) { \
+        printf("failed to allocate buffer\n"); \
+        return; \
+    } \
  \
     uint count = arch_cycle_count(); \
     for (uint i = 0; i < ITER; i++) { \
@@ -95,6 +107,10 @@ bench_cset(uint64_t)
 __NO_INLINE static void bench_cset_wide(void)
 {
     uint32_t *buf = malloc(BUFSIZE);
+    if (!buf) {
+        printf("failed to allocate buffer\n");
+        return;
+    }
 
     uint count = arch_cycle_count();
     for (uint i = 0; i < ITER; i++) {
@@ -120,6 +136,10 @@ __NO_INLINE static void bench_cset_wide(void)
 __NO_INLINE static void bench_memcpy(void)
 {
     uint8_t *buf = malloc(BUFSIZE);
+    if (!buf) {
+        printf("failed to allocate buffer\n");
+        return;
+    }
 
     uint count = arch_cycle_count();
     for (uint i = 0; i < ITER; i++) {
@@ -137,6 +157,10 @@ __NO_INLINE static void bench_memcpy(void)
 __NO_INLINE static void arm_bench_cset_stm(void)
 {
     uint32_t *buf = malloc(BUFSIZE);
+    if (!buf) {
+        printf("failed to allocate buffer\n");
+        return;
+    }
 
     uint count = arch_cycle_count();
     for (uint i = 0; i < ITER; i++) {
@@ -155,11 +179,11 @@ __NO_INLINE static void arm_bench_cset_stm(void)
     free(buf);
 }
 
+#if       (__CORTEX_M >= 0x03)
 __NO_INLINE static void arm_bench_multi_issue(void)
 {
     uint32_t cycles;
     uint32_t a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0, h = 0;
-
 #define ITER 1000000
     uint count = ITER;
     cycles = arch_cycle_count();
@@ -179,6 +203,7 @@ __NO_INLINE static void arm_bench_multi_issue(void)
     printf("took %u cycles to issue 8 integer ops (%f cycles/iteration)\n", cycles, (float)cycles / ITER);
 #undef ITER
 }
+#endif // __CORTEX_M
 #endif // ARCH_ARM
 
 #if WITH_LIB_LIBM
@@ -237,7 +262,9 @@ void benchmarks(void)
 #if ARCH_ARM
     arm_bench_cset_stm();
 
+#if       (__CORTEX_M >= 0x03)
     arm_bench_multi_issue();
+#endif
 #endif
 #if WITH_LIB_LIBM
     bench_sincos();

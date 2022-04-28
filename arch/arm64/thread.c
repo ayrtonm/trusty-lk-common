@@ -32,6 +32,9 @@
 
 struct context_switch_frame {
     vaddr_t lr;
+    vaddr_t pad;                // Padding to keep frame size a multiple of
+    vaddr_t tpidr_el0;          //  sp alignment requirements (16 bytes)
+    vaddr_t tpidrro_el0;
     vaddr_t r18;
     vaddr_t r19;
     vaddr_t r20;
@@ -58,7 +61,7 @@ static void initial_thread_func(void)
     LTRACEF("initial_thread_func: thread %p calling %p with arg %p\n", current_thread, current_thread->entry, current_thread->arg);
 
     /* release the thread lock that was implicitly held across the reschedule */
-    spin_unlock(&thread_lock);
+    thread_unlock_ints_disabled();
     arch_enable_ints();
 
     ret = current_thread->entry(current_thread->arg);
@@ -68,13 +71,30 @@ static void initial_thread_func(void)
     thread_exit(ret);
 }
 
+void arch_init_thread_initialize(struct thread *thread, uint cpu)
+{
+    extern uint8_t __stack_end[];
+    size_t stack_size = ARCH_DEFAULT_STACK_SIZE;
+    uint8_t *cpu_stack_end = __stack_end - stack_size * cpu;
+    thread->stack = cpu_stack_end - stack_size;
+    thread->stack_high = cpu_stack_end;
+    thread->stack_size = stack_size;
+#if KERNEL_SCS_ENABLED
+    extern uint8_t __shadow_stack[];
+    /* shadow stack grows up unlike the regular stack */
+    thread->shadow_stack = __shadow_stack + DEFAULT_SHADOW_STACK_SIZE * cpu;
+    thread->shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
+#endif
+
+}
+
 void arch_thread_initialize(thread_t *t)
 {
     // create a default stack frame on the stack
     vaddr_t stack_top = (vaddr_t)t->stack + t->stack_size;
 
     // make sure the top of the stack is 16 byte aligned for EABI compliance
-    stack_top = ROUNDDOWN(stack_top, 16);
+    stack_top = round_down(stack_top, 16);
 
     struct context_switch_frame *frame = (struct context_switch_frame *)(stack_top);
     frame--;
@@ -85,6 +105,11 @@ void arch_thread_initialize(thread_t *t)
 
     // set the stack pointer
     t->arch.sp = (vaddr_t)frame;
+
+    // set the shadow stack pointer
+#if KERNEL_SCS_ENABLED
+    frame->r18 = (vaddr_t)t->shadow_stack;
+#endif
 }
 
 void arch_context_switch(thread_t *oldthread, thread_t *newthread)

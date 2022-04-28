@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Travis Geiselbrecht
+ * Copyright (c) 2014-2016 Travis Geiselbrecht
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -21,6 +21,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <debug.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <arch.h>
 #include <arch/ops.h>
 #include <arch/arm64.h>
@@ -39,6 +41,11 @@
 static spin_lock_t arm_boot_cpu_lock = 1;
 static volatile int secondaries_to_init = 0;
 #endif
+
+extern void arm64_enter_uspace(ulong arg0, vaddr_t entry_point,
+                               vaddr_t user_stack_top,
+                               vaddr_t shadow_stack_base,
+                               uint64_t spsr) __NO_RETURN;
 
 static void arm64_cpu_early_init(void)
 {
@@ -95,6 +102,40 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
     PANIC_UNIMPLEMENTED;
 }
 
+/*
+ * switch to user mode, set the user stack pointer to user_stack_top, set
+ * x18 to shadow_stack_base, put the svc stack pointer to the top of the
+ * kernel stack.
+ */
+void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, vaddr_t shadow_stack_base, uint32_t flags, ulong arg0)
+{
+    bool is_32bit_uspace = (flags & ARCH_ENTER_USPACE_FLAG_32BIT);
+    user_stack_top = round_down(user_stack_top, is_32bit_uspace ? 8 : 16);
+
+    thread_t *ct = get_current_thread();
+
+    vaddr_t kernel_stack_top = (uintptr_t)ct->stack + ct->stack_size;
+    kernel_stack_top = round_down(kernel_stack_top, 16);
+
+#if !USER_SCS_ENABLED
+    assert(shadow_stack_base == 0);
+#endif
+
+    /* set up a default spsr to get into 64bit user space:
+     * zeroed NZCV
+     * no SS, no IL, no D
+     * all interrupts enabled
+     * mode 0: EL0t
+     */
+    uint64_t spsr = is_32bit_uspace ? 0x10 : 0;
+
+    arch_disable_ints();
+
+    arm64_enter_uspace(arg0, entry_point, user_stack_top, shadow_stack_base,
+                       spsr);
+    __UNREACHABLE;
+}
+
 #if WITH_SMP
 void arm64_secondary_entry(ulong asm_cpu_num)
 {
@@ -122,3 +163,17 @@ void arm64_secondary_entry(ulong asm_cpu_num)
 }
 #endif
 
+void arch_set_user_tls(vaddr_t tls_ptr)
+{
+    /*
+     * Note arm32 user space uses the ro TLS register and arm64 uses rw.
+     * This matches existing ABIs.
+     */
+#ifdef USER_32BIT
+    /* Lower bits of tpidrro_el0 aliased with arm32 tpidruro. */
+    __asm__ volatile("msr tpidrro_el0, %0" :: "r" (tls_ptr));
+#else
+    /* Can also set from user space. Implemented here for uniformity. */
+    __asm__ volatile("msr tpidr_el0, %0" :: "r" (tls_ptr));
+#endif
+}

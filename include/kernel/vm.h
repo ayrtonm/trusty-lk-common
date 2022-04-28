@@ -52,10 +52,16 @@
 #include <stdlib.h>
 #include <arch.h>
 #include <arch/mmu.h>
+#include <kernel/vm_obj.h>
+#include <lib/binary_search_tree.h>
+#include <lk/reflist.h>
 
 __BEGIN_CDECLS
 
-#define PAGE_ALIGN(x) ALIGN(x, PAGE_SIZE)
+static inline uintptr_t page_align(uintptr_t p) {
+    return align(p, PAGE_SIZE);
+}
+
 #define IS_PAGE_ALIGNED(x) IS_ALIGNED(x, PAGE_SIZE)
 
 struct mmu_initial_mapping {
@@ -100,7 +106,7 @@ STATIC_ASSERT(KERNEL_ASPACE_BASE + (KERNEL_ASPACE_SIZE - 1) > KERNEL_ASPACE_BASE
 
 static inline bool is_kernel_address(vaddr_t va)
 {
-    return (va >= KERNEL_ASPACE_BASE && va <= (KERNEL_ASPACE_BASE + KERNEL_ASPACE_SIZE - 1));
+    return (va >= (vaddr_t)KERNEL_ASPACE_BASE && va <= ((vaddr_t)KERNEL_ASPACE_BASE + ((vaddr_t)KERNEL_ASPACE_SIZE - 1)));
 }
 
 /* user address space, defaults to below kernel space with a 16MB guard gap on either side */
@@ -115,9 +121,8 @@ STATIC_ASSERT(USER_ASPACE_BASE + (USER_ASPACE_SIZE - 1) > USER_ASPACE_BASE);
 
 static inline bool is_user_address(vaddr_t va)
 {
-    return (va >= USER_ASPACE_BASE && va <= (USER_ASPACE_BASE + USER_ASPACE_SIZE - 1));
+    return (va >= USER_ASPACE_BASE && va <= (USER_ASPACE_BASE + (USER_ASPACE_SIZE - 1)));
 }
-
 
 /* physical allocator */
 typedef struct pmm_arena {
@@ -138,49 +143,85 @@ typedef struct pmm_arena {
 
 #define PMM_ARENA_FLAG_KMAP (0x1) /* this arena is already mapped and useful for kallocs */
 
-    /* Add a pre-filled memory arena to the physical allocator. */
-status_t pmm_add_arena(pmm_arena_t *arena) __NONNULL((1));
+/* Add a pre-filled memory arena to the physical allocator. */
+status_t pmm_add_arena(pmm_arena_t *arena);
 
-    /* Allocate count pages of physical memory, adding to the tail of the passed list.
-     * The list must be initialized.
-     * Returns the number of pages allocated.
-     */
-uint pmm_alloc_pages(uint count, struct list_node *list) __NONNULL((2));
+/* Optional flags passed to pmm_alloc */
+#define PMM_ALLOC_FLAG_KMAP (1U << 0)
+#define PMM_ALLOC_FLAG_CONTIGUOUS (1U << 1)
 
-    /* Allocate a specific range of physical pages, adding to the tail of the passed list.
-     * The list must be initialized.
-     * Returns the number of pages allocated.
-     */
-uint pmm_alloc_range(paddr_t address, uint count, struct list_node *list) __NONNULL((3));
+/**
+ * pmm_alloc - Allocate and clear @count pages of physical memory.
+ * @objp:       Pointer to returned vmm_obj (untouched if return code is not 0).
+ * @ref:        Reference to add to *@objp (untouched if return code is not 0).
+ * @count:      Number of pages to allocate. Must be greater than 0.
+ * @flags:      Bitmask to optionally restrict allocation to areas that are
+ *              already mapped in the kernel, PMM_ALLOC_FLAG_KMAP (e.g for
+ *              kernel heap and page tables) and/or to allocate a single
+ *              physically contiguous range, PMM_ALLOC_FLAG_CONTIGUOUS.
+ * @align_log2: Alignment needed for contiguous allocation, 0 otherwise.
+ *
+ * Allocate and initialize a vmm_obj that tracks the allocated pages.
+ *
+ * Return: 0 on success, ERR_NO_MEMORY if there is not enough memory free to
+ *         allocate the vmm_obj or the requested page count.
+ */
+status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
+                   uint32_t flags, uint8_t align_log2);
 
-    /* Free a list of physical pages.
-     * Returns the number of pages freed.
-     */
-uint pmm_free(struct list_node *list) __NONNULL((1));
+/* Allocate a specific range of physical pages, adding to the tail of the passed list.
+ * The list must be initialized.
+ * Returns the number of pages allocated.
+ * NOTE: This function does not clear the allocated pages
+ */
+size_t pmm_alloc_range(paddr_t address, uint count, struct list_node *list) __WARN_UNUSED_RESULT;
 
-    /* Helper routine for the above. */
-uint pmm_free_page(vm_page_t *page) __NONNULL((1));
+/* Free a list of physical pages.
+ * Returns the number of pages freed.
+ */
+size_t pmm_free(struct list_node *list);
 
-    /* Allocate a run of contiguous pages, aligned on log2 byte boundary (0-31)
-     * If the optional physical address pointer is passed, return the address.
-     * If the optional list is passed, append the allocate page structures to the tail of the list.
-     */
-uint pmm_alloc_contiguous(uint count, uint8_t align_log2, paddr_t *pa, struct list_node *list);
+/* Helper routine for the above. */
+size_t pmm_free_page(vm_page_t *page);
 
-    /* Allocate a run of pages out of the kernel area and return the pointer in kernel space.
-     * If the optional list is passed, append the allocate page structures to the tail of the list.
-     */
+/* Allocate and clear a run of contiguous pages, aligned on log2 byte boundary (0-31)
+ * If the optional physical address pointer is passed, return the address.
+ * If the optional list is passed, append the allocate page structures to the tail of the list.
+ */
+size_t pmm_alloc_contiguous(uint count, uint8_t align_log2, paddr_t *pa, struct list_node *list);
+
+/* Allocate and clear a run of pages out of the kernel area and return the pointer in kernel space.
+ * If the optional list is passed, append the allocate page structures to the tail of the list.
+ */
 void *pmm_alloc_kpages(uint count, struct list_node *list);
 
-    /* Helper routine for pmm_alloc_kpages. */
+/* Helper routine for pmm_alloc_kpages. */
 static inline void *pmm_alloc_kpage(void) { return pmm_alloc_kpages(1, NULL); }
+
+size_t pmm_free_kpages(void *ptr, uint count);
+
+/* assign physical addresses and sizes to the dynamic entries in the initial
+ * mappings
+ */
+void vm_assign_initial_dynamic(paddr_t kernel_start, size_t ram_size);
+
+/* map the initial mappings */
+void vm_map_initial_mappings(void);
 
 /* physical to virtual */
 void *paddr_to_kvaddr(paddr_t pa);
 
+/* a hint as to which virtual addresses will be returned by pmm_alloc_kpages */
+void *kvaddr_get_range(size_t* size_return);
+
 /* virtual to physical */
-paddr_t kvaddr_to_paddr(void *va);
-static inline paddr_t vaddr_to_paddr(void *ptr) { return kvaddr_to_paddr(ptr); }
+paddr_t vaddr_to_paddr(void *va);
+
+/* vm_page_t to physical address */
+paddr_t vm_page_to_paddr(const vm_page_t *page);
+
+/* paddr to vm_page_t */
+vm_page_t *paddr_to_vm_page(paddr_t addr);
 
 /* virtual allocator */
 typedef struct vmm_aspace {
@@ -192,63 +233,259 @@ typedef struct vmm_aspace {
     vaddr_t base;
     size_t  size;
 
-    struct list_node region_list;
+    struct bst_root regions;
+
+    arch_aspace_t arch_aspace;
 } vmm_aspace_t;
 
+#define VMM_ASPACE_FLAG_KERNEL 0x1
+
+/**
+ * struct vmm_obj_slice - range of memory backed by a &struct vmm_obj
+ * @obj:     backing object for the slice
+ * @obj_ref: reference to keep the backing object alive
+ * @offset:  offset in bytes into the object at which the slice begins
+ * @size:    number of bytes in the slice
+ *
+ * &struct vmm_obj_slice is intended to represent a particular range of
+ * memory in a backing object for those cases where something other than
+ * the entire backing object will be used.
+ *
+ * Must be initialized with vmm_obj_slice_init() or
+ * VMM_OBJ_SLICE_INITIAL_VALUE.
+ */
+struct vmm_obj_slice {
+    struct vmm_obj *obj;
+    struct obj_ref obj_ref;
+    size_t offset;
+    size_t size;
+};
+
+#define VMM_OBJ_SLICE_INITIAL_VALUE(slice)                 \
+    {                                                      \
+        .obj = NULL,                                       \
+        .obj_ref = OBJ_REF_INITIAL_VALUE((slice).obj_ref), \
+        .offset = 0,                                       \
+        .size = 0,                                         \
+    }
+
+/**
+ * vmm_obj_slice_init() - initializes a &struct vmm_obj_slice
+ * @slice: slice to initialize
+ */
+void vmm_obj_slice_init(struct vmm_obj_slice *slice);
+
+/**
+ * vmm_obj_slice_bind() - bind a vmm_obj_slice to a particular vmm_obj
+ * @slice:  Slice to bind (should be initialized and unused).
+ * @obj:    vmm_obj to bind the slice to
+ * @offset: Starting offset into the vmm_obj
+ * @size:   Size of the slice.
+ *
+ * Attaches a subrange of a particular &struct vmm_obj to the slice.
+ * The caller is responsible for validating the offset and size.
+ */
+void vmm_obj_slice_bind(struct vmm_obj_slice *slice, struct vmm_obj *obj,
+                        size_t offset, size_t size);
+
+/**
+ * vmm_obj_slice_release() - release reference held by a &struct vmm_obj_slice
+ * @slice: slice to release
+ *
+ * Releases any resource attached to the slice.
+ *
+ * Note: This assumes that a non-NULL obj implies the obj_ref field is
+ *       releasable. This invariant will hold if you have used the API to
+ *       interact with the slice, but if you have updated a field manually,
+ *       it is the responsiblity of the caller to ensure this holds.
+ */
+void vmm_obj_slice_release(struct vmm_obj_slice *slice);
+
 typedef struct vmm_region {
-    struct list_node node;
+    struct bst_node node;
     char name[32];
 
     uint flags;
     uint arch_mmu_flags;
 
     vaddr_t base;
-    size_t  size;
 
-    struct list_node page_list;
+    struct vmm_obj_slice obj_slice;
 } vmm_region_t;
 
 #define VMM_REGION_FLAG_RESERVED 0x1
 #define VMM_REGION_FLAG_PHYSICAL 0x2
+#define VMM_REGION_FLAG_INTERNAL_MASK 0xffff
 
 /* grab a handle to the kernel address space */
 extern vmm_aspace_t _kernel_aspace;
-static inline vmm_aspace_t *vmm_get_kernel_aspace(void) {
+static inline vmm_aspace_t *vmm_get_kernel_aspace(void)
+{
     return &_kernel_aspace;
 }
 
+/* virtual to container address space */
+struct vmm_aspace *vaddr_to_aspace(void *ptr);
+
+/**
+ * vmm_find_spot() - Finds a gap of the requested size in the address space
+ * @aspace: The address space to locate a gap in
+ * @size:   How large of a gap is sought
+ * @out:    Output parameter for the base of the gap
+ *
+ * Finds a gap of size @size in @aspace, and outputs its address. If ASLR is
+ * active, this location will be randomized.
+ *
+ * This function *DOES NOT* actually allocate anything, it merely locates a
+ * prospective location. It is intended for use in situations where a larger
+ * gap than an individual mapping is required, such as in the case of the ELF
+ * loader (where text, rodata, and data are all separate mappings, but must
+ * have fixed relative offsets).
+ *
+ * The address returned is suitable for use with vmm_alloc() and similar
+ * functions with the VMM_FLAG_VALLOC_SPECIFIC flag.
+ *
+ * On ARM32, this function assumes the request is for *secure* memory
+ * for the purposes of region compatiblity.
+ *
+ * Return: Whether a spot was successfully located
+ */
+bool vmm_find_spot(vmm_aspace_t *aspace, size_t size, vaddr_t *out);
+
 /* reserve a chunk of address space to prevent allocations from that space */
-status_t vmm_reserve_space(vmm_aspace_t *aspace, const char *name, size_t size, vaddr_t vaddr)
-    __NONNULL((1));
+status_t vmm_reserve_space(vmm_aspace_t *aspace, const char *name, size_t size, vaddr_t vaddr);
+
+/* allocate a region of memory backed by vmm_obj */
+status_t vmm_alloc_obj(vmm_aspace_t *aspace, const char *name,
+                       struct vmm_obj *obj, size_t offset, size_t size,
+                       void **ptr, uint8_t align_log2, uint vmm_flags,
+                       uint arch_mmu_flags);
 
 /* allocate a region of virtual space that maps a physical piece of address space.
    the physical pages that back this are not allocated from the pmm. */
-status_t vmm_alloc_physical(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, paddr_t paddr, uint vmm_flags, uint arch_mmu_flags)
-    __NONNULL((1));
+status_t vmm_alloc_physical_etc(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, paddr_t *paddr, uint paddr_count, uint vmm_flags, uint arch_mmu_flags);
+
+/* allocate a region of virtual space that maps a physical piece of address space.
+   the physical pages that back this are not allocated from the pmm. */
+static inline status_t vmm_alloc_physical(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, paddr_t paddr, uint vmm_flags, uint arch_mmu_flags)
+{
+    return vmm_alloc_physical_etc(aspace, name, size, ptr, align_log2,
+                                  &paddr, 1, vmm_flags, arch_mmu_flags);
+}
 
 /* allocate a region of memory backed by newly allocated contiguous physical memory  */
-status_t vmm_alloc_contiguous(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags)
-    __NONNULL((1));
+status_t vmm_alloc_contiguous(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
+
 
 /* allocate a region of memory backed by newly allocated physical memory */
-status_t vmm_alloc(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags)
-    __NONNULL((1));
+status_t vmm_alloc(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
 
-/* Unmap previously allocated region and free physical memory pages backing it (if any) */
+/**
+ * vmm_get_obj() - Acquire a slice from a chunk of an &struct aspace
+ * @aspace: address space to extract from
+ * @vaddr:  base virtual address the slice should start at
+ * @size:   desired slice size
+ * @slice:  output parameter for the result slice, must not be null, should be
+ *          initialized
+ *
+ * Locates the &struct vmm_obj backing a particular address range within
+ * @aspace, and returns a slice representing it if possible. If the range
+ * is unmapped, has no vmm_obj backing, or spans multiple backing slices,
+ * an error will be returned.
+ *
+ * On success, @slice will be updated to refer to a subrange of the backing
+ * slice for the supplied virtual address range. On failure, @slice will be
+ * untouched.
+ *
+ * Return: Status code; any value other than NO_ERROR is a failure.
+ */
+status_t vmm_get_obj(const vmm_aspace_t *aspace, vaddr_t vaddr, size_t size,
+                     struct vmm_obj_slice *slice);
+
+#define VMM_FREE_REGION_FLAG_EXPAND 0x1
+
+/* Unmap previously allocated region and free physical memory pages backing it (if any).
+   If flags is 0, va and size must match entire region.
+   If flags is VMM_FREE_REGION_FLAG_EXPAND, free entire region containin [va, va+size-1] */
+status_t vmm_free_region_etc(vmm_aspace_t *aspace, vaddr_t va, size_t size, uint32_t flags);
+
+/* Unmap previously allocated region and free physical memory pages backing it (if any).
+   va can be anywhere in region. */
 status_t vmm_free_region(vmm_aspace_t *aspace, vaddr_t va);
 
-    /* For the above region creation routines. Allocate virtual space at the passed in pointer. */
-#define VMM_FLAG_VALLOC_SPECIFIC 0x1
+/* For the above region creation routines. Allocate virtual space at the passed in pointer. */
+#define VMM_FLAG_VALLOC_SPECIFIC 0x10000
+
+/*
+ * Disable default guard page before region. Can be used with
+ * VMM_FLAG_VALLOC_SPECIFIC if two regions need to be created with no gap.
+ */
+#define VMM_FLAG_NO_START_GUARD 0x20000
+
+/*
+ * Disable default guard page before region. Can be used with
+ * VMM_FLAG_VALLOC_SPECIFIC if two regions need to be created with no gap.
+ */
+#define VMM_FLAG_NO_END_GUARD 0x40000
 
 /* allocate a new address space */
-status_t vmm_create_aspace(vmm_aspace_t **aspace, const char *name, uint flags)
-    __NONNULL((1));
+status_t vmm_create_aspace(vmm_aspace_t **aspace, const char *name, uint flags);
 
 /* destroy everything in the address space */
-status_t vmm_free_aspace(vmm_aspace_t *aspace)
-    __NONNULL((1));
+status_t vmm_free_aspace(vmm_aspace_t *aspace);
 
-#define VMM_FLAG_ASPACE_KERNEL 0x1
+/* internal routine by the scheduler to swap mmu contexts */
+void vmm_context_switch(vmm_aspace_t *oldspace, vmm_aspace_t *newaspace);
+
+/* set the current user aspace as active on the current thread.
+   NULL is a valid argument, which unmaps the current user address space */
+void vmm_set_active_aspace(vmm_aspace_t *aspace);
+
+/**
+ * update_relocation_entries() - Update all entries in the relocation table
+ *                               by subtracting a given value from each one.
+ * @relr_start: start of the relocation list.
+ * @relr_end: end of the relocation list.
+ * @reloc_delta: Value to subtract from each relocation entry.
+ *
+ * Iterates through all entries in the relocation table starting at @relr_start
+ * and subtracts @reloc_delta from each entry that encodes an absolute pointer.
+ * This is currently called to update the table emitted by the linker with
+ * kernel virtual addresses into a table containing physical addresses, so the
+ * subtractions should never underflow if @reloc_delta is the positive
+ * difference between the kernel's virtual and physical addresses.
+ */
+void update_relocation_entries(uintptr_t* relr_start, uintptr_t* relr_end,
+                               uintptr_t reloc_delta);
+/**
+ * relocate_kernel() - Apply the given list of relocations to the kernel.
+ * @relr_start: start of the relocation list.
+ * @relr_end: end of the relocation list.
+ * @old_base: current base address of the kernel.
+ * @new_base: target base address to relocate the kernel to.
+ *
+ * This function applies the given list of relative relocations to the kernel,
+ * moving the base of the kernel from @old_base to @new_base.
+ */
+void relocate_kernel(uintptr_t* relr_start, uintptr_t* relr_end,
+                     uintptr_t old_base, uintptr_t new_base);
+
+/* allocate a buffer in early boot memory of the given size and alignment */
+void *boot_alloc_memalign(size_t len, size_t alignment) __MALLOC;
+
+/* allocate a buffer in early boot memory of the given size and an 8 byte
+ * alignment
+ */
+void *boot_alloc_mem(size_t len) __MALLOC;
+
+#ifdef KERNEL_BASE_ASLR
+/* select a random address for KERNEL_BASE_ASLR */
+vaddr_t aslr_randomize_kernel_base(vaddr_t kernel_base);
+#else
+static inline vaddr_t aslr_randomize_kernel_base(vaddr_t kernel_base) {
+    return kernel_base;
+}
+#endif
 
 __END_CDECLS
 

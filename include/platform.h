@@ -49,7 +49,7 @@ typedef enum {
 } platform_halt_reason;
 
 lk_time_t current_time(void);
-lk_bigtime_t current_time_hires(void);
+lk_time_ns_t current_time_ns(void);
 
 /* super early platform initialization, before almost everything */
 void platform_early_init(void);
@@ -83,6 +83,17 @@ void platform_halt(platform_halt_action suggested_action,
 
 /* called during chain loading to make sure drivers and platform is put into a stopped state */
 void platform_quiesce(void);
+
+/* called by LK idle thread to enter idle state. It is declared as WEAK
+ * (the default implementation is just calling arch_idle) and can be overridden
+ * by platform to implement platform specific handling.
+ */
+void platform_idle(void);
+
+/* platform_early_halt is a simpler version of platform_halt() that can be
+ * called from any context, including early init and assembly with no stack.
+ */
+void platform_early_halt(void) __NO_RETURN;
 
 __END_CDECLS;
 

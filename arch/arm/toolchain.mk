@@ -1,102 +1,51 @@
-ifndef ARCH_arm_TOOLCHAIN_INCLUDED
-ARCH_arm_TOOLCHAIN_INCLUDED := 1
+LOCAL_DIR := $(GET_LOCAL_DIR)
 
-# try to find the toolchain
 ifndef ARCH_arm_TOOLCHAIN_PREFIX
-
-# if TOOLCHAIN_PREFIX is not empty, try to use it first
-ifneq ($(TOOLCHAIN_PREFIX),)
-ARCH_arm_TOOLCHAIN_PREFIX := $(TOOLCHAIN_PREFIX)
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
+$(error Please run envsetup.sh to set ARCH_arm_TOOLCHAIN_PREFIX)
 endif
 
-# try a series of common arm toolchain prefixes in the path
-ifeq ($(FOUNDTOOL),)
-ARCH_arm_TOOLCHAIN_PREFIX := arm-eabi-
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
-endif
-ifeq ($(FOUNDTOOL),)
-ARCH_arm_TOOLCHAIN_PREFIX := arm-elf-
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
-endif
-ifeq ($(FOUNDTOOL),)
-ARCH_arm_TOOLCHAIN_PREFIX := arm-none-eabi-
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
-endif
-ifeq ($(FOUNDTOOL),)
-ARCH_arm_TOOLCHAIN_PREFIX := arm-linux-gnueabi-
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
+ARCH_arm_COMPILEFLAGS :=
 
-# Set no stack protection if we found our gnueabi toolchain. We don't
-# need it.
-#
-# Stack protection is default in this toolchain and we get such errors
-# final linking stage:
-#
-# undefined reference to `__stack_chk_guard'
-# undefined reference to `__stack_chk_fail'
-# undefined reference to `__stack_chk_guard'
-#
-ifneq (,$(findstring arm-linux-gnueabi-,$(FOUNDTOOL)))
-        ARCH_arm_COMPILEFLAGS += -fno-stack-protector
-endif
-endif # arm-linux-gnueabi-
-
-else
-FOUNDTOOL=$(shell which $(ARCH_arm_TOOLCHAIN_PREFIX)gcc)
-endif # ARCH_arm_TOOLCHAIN_PREFIX
-
-ifeq ($(FOUNDTOOL),)
-$(error cannot find toolchain, please set ARCH_arm_TOOLCHAIN_PREFIX or add it to your path)
-endif
-
-
-ifeq ($(ARM_CPU),cortex-m3)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-endif
-ifeq ($(ARM_CPU),cortex-m4)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-endif
-ifeq ($(ARM_CPU),cortex-m7)
-ARCH_arm_COMPILEFLAGS += -mcpu=cortex-m4
-endif
-ifeq ($(ARM_CPU),cortex-m4f)
-ARCH_arm_COMPILEFLAGS += -mcpu=cortex-m4 -mfloat-abi=softfp
-endif
-ifeq ($(ARM_CPU),cortex-a7)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
-endif
-ifeq ($(ARM_CPU),cortex-a8)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ARCH_arm_COMPILEFLAGS += -mfpu=neon -mfloat-abi=softfp
-endif
-ifeq ($(ARM_CPU),cortex-a9)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-endif
-ifeq ($(ARM_CPU),cortex-a9-neon)
-ARCH_arm_COMPILEFLAGS += -mcpu=cortex-a9
-# XXX cannot enable neon right now because compiler generates
-# neon code for 64bit integer ops
-ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
-endif
-ifeq ($(ARM_CPU),cortex-a15)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-ifneq ($(ARM_WITHOUT_VFP_NEON),true)
-ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
-endif
-endif
-ifeq ($(ARM_CPU),arm1136j-s)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-endif
-ifeq ($(ARM_CPU),arm1176jzf-s)
-ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
-endif
+# Arch
 ifeq ($(ARM_CPU),armv8-a)
 ARCH_arm_COMPILEFLAGS += -march=$(ARM_CPU)
-ifneq ($(ARM_WITHOUT_VFP_NEON),true)
-ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp
-endif
+else
+ARCH_arm_COMPILEFLAGS += -mcpu=$(ARM_CPU)
 endif
 
+# Floating point support
+ifneq ($(ARM_WITHOUT_VFP_NEON),true)
+# ARM_WITHOUT_VFP_NEON = false
+ifeq (false,$(call TOBOOL,$(ALLOW_FP_USE)))
+# This is likely kernel space.
+# Don't use neon registers but still support FP ASM.
+# The kernel will not save NEON register on interrupt.
+ARCH_arm_COMPILEFLAGS += -mfpu=vfpv3 -mfloat-abi=softfp -DWITH_NO_FP=1
+else # ALLOW_FP_USE = true
+# This is likely userspace.
+ifeq ($(ARM_CPU),cortex-a7)
+ARCH_arm_COMPILEFLAGS += -mfpu=neon-vfpv4 -mfloat-abi=softfp
 endif
+ifeq ($(ARM_CPU),cortex-a15)
+ARCH_arm_COMPILEFLAGS += -mfpu=neon-vfpv4 -mfloat-abi=softfp
+endif
+ifeq ($(ARM_CPU),armv8-a)
+ARCH_arm_COMPILEFLAGS += -mfpu=crypto-neon-fp-armv8 -mfloat-abi=softfp
+endif
+endif # ALLOW_FP_USE
+else # ARM_WITHOUT_VFP_NEON = true
+ARCH_arm_COMPILEFLAGS += -mfloat-abi=soft
+endif # ARM_WITHOUT_VFP_NEON
+
+CLANG_ARM_TARGET_SYS ?= linux
+CLANG_ARM_TARGET_ABI ?= gnu
+
+ARCH_arm_THUMBCFLAGS :=
+ifeq ($(ENABLE_THUMB),true)
+ARCH_arm_THUMBCFLAGS := -mthumb -D__thumb__
+endif
+
+ARCH_arm_COMPILEFLAGS += -target arm-$(CLANG_ARM_TARGET_SYS)-$(CLANG_ARM_TARGET_ABI)
+
+# Set up custom Rust target to match clang target
+ARCH_arm_RUSTFLAGS := --target=$(LOCAL_DIR)/rust-target.json

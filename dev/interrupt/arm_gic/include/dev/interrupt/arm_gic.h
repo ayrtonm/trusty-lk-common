@@ -25,19 +25,67 @@
 
 #include <sys/types.h>
 
+/**
+ * arm_gic_init() - Legacy GIC initialization routine.
+ *
+ * This initializes the GIC using the %GICBASE and %GICx_OFFSET
+ * macros as the virtual addresses of the GIC banks, and assumes
+ * that the platform code has already mapped them into the
+ * address space.
+ */
 void arm_gic_init(void);
 
-enum {
-	/* Ignore cpu_mask and forward interrupt to all CPUs other than the current cpu */
-	ARM_GIC_SGI_FLAG_TARGET_FILTER_NOT_SENDER = 0x1,
-	/* Ignore cpu_mask and forward interrupt to current CPU only */
-	ARM_GIC_SGI_FLAG_TARGET_FILTER_SENDER = 0x2,
-	ARM_GIC_SGI_FLAG_TARGET_FILTER_MASK = 0x3,
+/**
+ * struct arm_gic_init_info - Initialization information for the GIC.
+ * @gicc_paddr: Physical address of GIC CPU interface registers.
+ * @gicc_size: Total size of GIC CPU interface registers.
+ * @gicd_paddr: Physical address of GIC Distributor registers.
+ * @gicd_size: Total size of GIC Distributor registers.
+ * @gicr_paddr: Physical address of GIC Redistributor registers.
+ * @gicr_size: Total size of GIC Redistributor registers.
+ */
+struct arm_gic_init_info {
+    paddr_t gicc_paddr;
+    size_t gicc_size;
+    paddr_t gicd_paddr;
+    size_t gicd_size;
+    paddr_t gicr_paddr;
+    size_t gicr_size;
+};
 
-	/* Only forward the interrupt to CPUs that has the interrupt configured as group 1 (non-secure) */
-	ARM_GIC_SGI_FLAG_NS = 0x4,
+/**
+ * arm_gic_init_map() - Map the GIC into the virtual address space and
+ *                      initialize it.
+ * @init_info: Pointer to a &struct arm_gic_init_info structure with the extra
+ *             initialization information, e.g., the physical addresses and
+ *             sizes of the GIC registers.
+ *
+ * This function maps the registers of the GICs then initializes the GIC.
+ * If ASLR is enabled then the virtual addresses are randomized.
+ *
+ */
+void arm_gic_init_map(struct arm_gic_init_info* init_info);
+
+enum {
+    /* Ignore cpu_mask and forward interrupt to all CPUs other than the current cpu */
+    ARM_GIC_SGI_FLAG_TARGET_FILTER_NOT_SENDER = 0x1,
+    /* Ignore cpu_mask and forward interrupt to current CPU only */
+    ARM_GIC_SGI_FLAG_TARGET_FILTER_SENDER = 0x2,
+    ARM_GIC_SGI_FLAG_TARGET_FILTER_MASK = 0x3,
+
+    /* Only forward the interrupt to CPUs that has the interrupt configured as group 1 (non-secure) */
+    ARM_GIC_SGI_FLAG_NS = 0x4,
 };
 status_t arm_gic_sgi(u_int irq, u_int flags, u_int cpu_mask);
+
+struct arm_gic_affinities {
+    uint8_t aff0;
+    uint8_t aff1;
+    uint8_t aff2;
+    uint8_t aff3;
+};
+
+struct arm_gic_affinities arch_cpu_num_to_gic_affinities(size_t cpu_num);
 
 #endif
 

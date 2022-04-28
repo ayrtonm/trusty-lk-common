@@ -34,6 +34,7 @@
 #include <target.h>
 #include <lib/heap.h>
 #include <kernel/mutex.h>
+#include <kernel/novm.h>
 #include <kernel/thread.h>
 #include <lk/init.h>
 #include <lk/main.h>
@@ -41,8 +42,8 @@
 /* saved boot arguments from whoever loaded the system */
 ulong lk_boot_args[4];
 
-extern void *__ctor_list;
-extern void *__ctor_end;
+extern void (*__ctor_list[])(void);
+extern void (*__ctor_end[])(void);
 extern int __bss_start;
 extern int _end;
 
@@ -57,17 +58,10 @@ extern void kernel_init(void);
 
 static void call_constructors(void)
 {
-    void **ctor;
+    void (**ctor)(void);
 
-    ctor = &__ctor_list;
-    while (ctor != &__ctor_end) {
-        void (*func)(void);
-
-        func = (void (*)(void))*ctor;
-
-        func();
-        ctor++;
-    }
+    for (ctor = __ctor_list; ctor != __ctor_end; ctor++)
+        (*ctor)();
 }
 
 /* called from arch code */
@@ -95,16 +89,16 @@ void lk_main(ulong arg0, ulong arg1, ulong arg2, ulong arg3)
     target_early_init();
 
 #if WITH_SMP
-    dprintf(INFO, "\nwelcome to lk/MP\n\n");
+    dprintf(SPEW, "\nwelcome to lk/MP\n\n");
 #else
-    dprintf(INFO, "\nwelcome to lk\n\n");
+    dprintf(SPEW, "\nwelcome to lk\n\n");
 #endif
     dprintf(INFO, "boot args 0x%lx 0x%lx 0x%lx 0x%lx\n",
             lk_boot_args[0], lk_boot_args[1], lk_boot_args[2], lk_boot_args[3]);
 
     // bring up the kernel heap
-    dprintf(SPEW, "initializing heap\n");
     lk_primary_cpu_init_level(LK_INIT_LEVEL_TARGET_EARLY, LK_INIT_LEVEL_HEAP - 1);
+    dprintf(SPEW, "initializing heap\n");
     heap_init();
 
     // deal with any static constructors
@@ -120,7 +114,7 @@ void lk_main(ulong arg0, ulong arg1, ulong arg2, ulong arg3)
     // create a thread to complete system initialization
     dprintf(SPEW, "creating bootstrap completion thread\n");
     thread_t *t = thread_create("bootstrap2", &bootstrap2, NULL, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-    t->pinned_cpu = 0;
+    thread_set_pinned_cpu(t, 0);
     thread_detach(t);
     thread_resume(t);
 

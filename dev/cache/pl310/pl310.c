@@ -211,7 +211,7 @@ void pl310_invalidate_range(addr_t start, size_t len)
 
 void pl310_pin_cache_range(addr_t start, size_t len)
 {
-    len = ROUNDUP(len, CACHE_LINE);
+    len = round_up(len, CACHE_LINE);
 
     arch_disable_ints();
 

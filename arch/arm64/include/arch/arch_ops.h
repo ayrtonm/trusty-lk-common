@@ -24,6 +24,7 @@
 
 #ifndef ASSEMBLY
 
+#include <assert.h>
 #include <stdbool.h>
 #include <compiler.h>
 #include <reg.h>
@@ -32,24 +33,46 @@
 #define USE_GCC_ATOMICS 1
 #define ENABLE_CYCLE_COUNTER 1
 
+#if ARM_MERGE_FIQ_IRQ
+
+#define DAIF_MASK_INTS "3"
+#define DAIF_MASK_FIQS "0"
+
+static inline void check_irq_fiq_state(unsigned long state)
+{
+    ASSERT(((state >> 6) & 1) == ((state >> 7) & 1));
+}
+
+#else
+
+#define DAIF_MASK_INTS "2"
+#define DAIF_MASK_FIQS "1"
+
+static inline void check_irq_fiq_state(unsigned long state)
+{
+}
+
+#endif
+
 // override of some routines
 static inline void arch_enable_ints(void)
 {
     CF;
-    __asm__ volatile("msr daifclr, #2" ::: "memory");
+    __asm__ volatile("msr daifclr, #" DAIF_MASK_INTS ::: "memory");
 }
 
 static inline void arch_disable_ints(void)
 {
-    __asm__ volatile("msr daifset, #2" ::: "memory");
+    __asm__ volatile("msr daifset, #" DAIF_MASK_INTS ::: "memory");
     CF;
 }
 
 static inline bool arch_ints_disabled(void)
 {
-    unsigned int state;
+    unsigned long state;
 
     __asm__ volatile("mrs %0, daif" : "=r"(state));
+    check_irq_fiq_state(state);
     state &= (1<<7);
 
     return !!state;
@@ -58,21 +81,22 @@ static inline bool arch_ints_disabled(void)
 static inline void arch_enable_fiqs(void)
 {
     CF;
-    __asm__ volatile("msr daifclr, #1" ::: "memory");
+    __asm__ volatile("msr daifclr, #" DAIF_MASK_FIQS ::: "memory");
 }
 
 static inline void arch_disable_fiqs(void)
 {
-    __asm__ volatile("msr daifset, #1" ::: "memory");
+    __asm__ volatile("msr daifset, #" DAIF_MASK_FIQS ::: "memory");
     CF;
 }
 
 // XXX
 static inline bool arch_fiqs_disabled(void)
 {
-    unsigned int state;
+    unsigned long state;
 
     __asm__ volatile("mrs %0, daif" : "=r"(state));
+    check_irq_fiq_state(state);
     state &= (1<<6);
 
     return !!state;
@@ -230,8 +254,8 @@ static inline uint32_t arch_cycle_count(void)
 #elif ARM_ISA_ARMV7
     uint32_t count;
     __asm__ volatile("mrc       p15, 0, %0, c9, c13, 0"
-        : "=r" (count)
-        );
+                     : "=r" (count)
+                    );
     return count;
 #else
 //#warning no arch_cycle_count implementation
@@ -251,10 +275,10 @@ static inline void set_current_thread(struct thread *t)
 }
 
 #if WITH_SMP
+extern uint arm64_curr_cpu_num(void);
 static inline uint arch_curr_cpu_num(void)
 {
-    uint64_t mpidr =  ARM64_READ_SYSREG(mpidr_el1);
-    return ((mpidr & ((1U << SMP_CPU_ID_BITS) - 1)) >> 8 << SMP_CPU_CLUSTER_SHIFT) | (mpidr & 0xff);
+    return arm64_curr_cpu_num();
 }
 #else
 static inline uint arch_curr_cpu_num(void)

@@ -13,54 +13,6 @@ GLOBAL_DEFINES += \
 
 # do set some options based on the cpu core
 HANDLED_CORE := false
-ifeq ($(ARM_CPU),cortex-m3)
-GLOBAL_DEFINES += \
-	ARM_CPU_CORTEX_M3=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7M=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1
-HANDLED_CORE := true
-ENABLE_THUMB := true
-SUBARCH := arm-m
-endif
-ifeq ($(ARM_CPU),cortex-m4)
-GLOBAL_DEFINES += \
-	ARM_CPU_CORTEX_M4=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7M=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1
-HANDLED_CORE := true
-ENABLE_THUMB := true
-SUBARCH := arm-m
-endif
-ifeq ($(ARM_CPU),cortex-m4f)
-GLOBAL_DEFINES += \
-	ARM_CPU_CORTEX_M4=1 \
-	ARM_CPU_CORTEX_M4F=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7M=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1 \
-	ARM_WITH_VFP=1 \
-	__FPU_PRESENT=1
-HANDLED_CORE := true
-ENABLE_THUMB := true
-SUBARCH := arm-m
-endif
-ifeq ($(ARM_CPU),cortex-m7)
-GLOBAL_DEFINES += \
-	ARM_CPU_CORTEX_M7=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7M=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1 \
-	ARM_WITH_CACHE=1
-HANDLED_CORE := true
-ENABLE_THUMB := true
-SUBARCH := arm-m
-endif
 ifeq ($(ARM_CPU),cortex-a7)
 GLOBAL_DEFINES += \
 	ARM_WITH_CP15=1 \
@@ -89,66 +41,6 @@ GLOBAL_DEFINES += \
 	ARM_WITH_VFP=1 \
 	ARM_WITH_NEON=1
 endif
-HANDLED_CORE := true
-endif
-ifeq ($(ARM_CPU),cortex-a8)
-GLOBAL_DEFINES += \
-	ARM_WITH_CP15=1 \
-	ARM_WITH_MMU=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7A=1 \
-	ARM_WITH_VFP=1 \
-	ARM_WITH_NEON=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1 \
-	ARM_WITH_CACHE=1 \
-	ARM_WITH_L2=1
-HANDLED_CORE := true
-endif
-ifeq ($(ARM_CPU),cortex-a9)
-GLOBAL_DEFINES += \
-	ARM_WITH_CP15=1 \
-	ARM_WITH_MMU=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7A=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1 \
-	ARM_WITH_CACHE=1
-HANDLED_CORE := true
-endif
-ifeq ($(ARM_CPU),cortex-a9-neon)
-GLOBAL_DEFINES += \
-	ARM_CPU_CORTEX_A9=1 \
-	ARM_WITH_CP15=1 \
-	ARM_WITH_MMU=1 \
-	ARM_ISA_ARMv7=1 \
-	ARM_ISA_ARMv7A=1 \
-	ARM_WITH_VFP=1 \
-	ARM_WITH_NEON=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_THUMB2=1 \
-	ARM_WITH_CACHE=1
-HANDLED_CORE := true
-endif
-ifeq ($(ARM_CPU),arm1136j-s)
-GLOBAL_DEFINES += \
-	ARM_WITH_CP15=1 \
-	ARM_WITH_MMU=1 \
-	ARM_ISA_ARMv6=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_CACHE=1 \
-	ARM_CPU_ARM1136=1
-HANDLED_CORE := true
-endif
-ifeq ($(ARM_CPU),arm1176jzf-s)
-GLOBAL_DEFINES += \
-	ARM_WITH_CP15=1 \
-	ARM_WITH_MMU=1 \
-	ARM_ISA_ARMv6=1 \
-	ARM_WITH_VFP=1 \
-	ARM_WITH_THUMB=1 \
-	ARM_WITH_CACHE=1 \
-	ARM_CPU_ARM1136=1
 HANDLED_CORE := true
 endif
 ifeq ($(ARM_CPU),armv8-a)
@@ -185,11 +77,9 @@ THUMBCFLAGS :=
 THUMBINTERWORK :=
 ifeq ($(ENABLE_THUMB),true)
 THUMBCFLAGS := -mthumb -D__thumb__
-THUMBINTERWORK := -mthumb-interwork
 endif
 
 GLOBAL_INCLUDES += \
-	$(LOCAL_DIR)/include \
 	$(LOCAL_DIR)/$(SUBARCH)/include
 
 ifeq ($(SUBARCH),arm)
@@ -201,6 +91,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm/debug.c \
 	$(LOCAL_DIR)/arm/ops.S \
 	$(LOCAL_DIR)/arm/exceptions.S \
+	$(LOCAL_DIR)/arm/usercopy.S \
 	$(LOCAL_DIR)/arm/faults.c \
 	$(LOCAL_DIR)/arm/fpu.c \
 	$(LOCAL_DIR)/arm/mmu.c \
@@ -212,18 +103,40 @@ MODULE_ARM_OVERRIDE_SRCS := \
 GLOBAL_DEFINES += \
 	ARCH_DEFAULT_STACK_SIZE=4096
 
+MODULE_DEPS += \
+	trusty/kernel/lib/trusty \
+
 ARCH_OPTFLAGS := -O2
 WITH_LINKER_GC ?= 1
 
+# Set ARM_MERGE_FIQ_IRQ to remove separation between IRQs and FIQs. This is
+# for GICv3 or GICv4 when running in trustzone as the non-secure interrupts
+# will be delivered as FIQs instead of IRQs.
+ARM_MERGE_FIQ_IRQ ?= false
+
+ifeq (true,$(call TOBOOL,$(ARM_MERGE_FIQ_IRQ)))
+GLOBAL_DEFINES += ARM_MERGE_FIQ_IRQ=1
+endif
+
+# Declare ARM architecture has FIQ
+GLOBAL_DEFINES += ARCH_HAS_FIQ=1
+
 # we have a mmu and want the vmm/pmm
 WITH_KERNEL_VM ?= 1
+
+KERNEL_ASPACE_BASE ?= 0x40000000
+KERNEL_ASPACE_SIZE ?= 0xc0000000
+USER_ASPACE_BASE   ?= 0x00001000
+USER_ASPACE_SIZE   ?= 0x3fffe000
 
 # for arm, have the kernel occupy the entire top 3GB of virtual space,
 # but put the kernel itself at 0x80000000.
 # this leaves 0x40000000 - 0x80000000 open for kernel space to use.
 GLOBAL_DEFINES += \
-    KERNEL_ASPACE_BASE=0x40000000 \
-    KERNEL_ASPACE_SIZE=0xc0000000
+    KERNEL_ASPACE_BASE=$(KERNEL_ASPACE_BASE) \
+    KERNEL_ASPACE_SIZE=$(KERNEL_ASPACE_SIZE) \
+    USER_ASPACE_BASE=$(USER_ASPACE_BASE) \
+    USER_ASPACE_SIZE=$(USER_ASPACE_SIZE)
 
 KERNEL_BASE ?= 0x80000000
 KERNEL_LOAD_OFFSET ?= 0
@@ -267,14 +180,14 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm-m/thread.c \
 	$(LOCAL_DIR)/arm-m/vectab.c
 
-GLOBAL_INCLUDES += \
-	$(LOCAL_DIR)/arm-m/CMSIS/Include
-
 # we're building for small binaries
 GLOBAL_DEFINES += \
 	ARM_ONLY_THUMB=1 \
 	ARCH_DEFAULT_STACK_SIZE=1024 \
 	SMP_MAX_CPUS=1
+
+MODULE_DEPS += \
+	arch/arm/arm-m/CMSIS
 
 ARCH_OPTFLAGS := -Os
 WITH_LINKER_GC ?= 1
@@ -287,7 +200,11 @@ $(info TOOLCHAIN_PREFIX = $(TOOLCHAIN_PREFIX))
 
 ARCH_COMPILEFLAGS += $(ARCH_$(ARCH)_COMPILEFLAGS)
 
-GLOBAL_COMPILEFLAGS += $(THUMBINTERWORK)
+
+# set the max page size to something more reasonables (defaults to 64K or above)
+GLOBAL_LDFLAGS += -z max-page-size=4096
+
+$(info GLOBAL_COMPILEFLAGS = $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS))
 
 # make sure some bits were set up
 MEMVARS_SET := 0
@@ -301,10 +218,9 @@ ifeq ($(MEMVARS_SET),0)
 $(error missing MEMBASE or MEMSIZE variable, please set in target rules.mk)
 endif
 
-LIBGCC := $(shell $(TOOLCHAIN_PREFIX)gcc $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS) -print-libgcc-file-name)
-$(info LIBGCC = $(LIBGCC))
-
-$(info GLOBAL_COMPILEFLAGS = $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) $(THUMBCFLAGS))
+GLOBAL_DEFINES += \
+	MEMBASE=$(MEMBASE) \
+	MEMSIZE=$(MEMSIZE)
 
 # potentially generated files that should be cleaned out with clean make rule
 GENERATED += \
@@ -329,9 +245,9 @@ linkerscript.phony:
 
 # arm specific script to try to guess stack usage
 $(OUTELF).stack: LOCAL_DIR:=$(LOCAL_DIR)
-$(OUTELF).stack: $(OUTELF).lst
+$(OUTELF).stack: $(OUTELF)
 	$(NOECHO)echo generating stack usage $@
-	$(NOECHO)$(LOCAL_DIR)/stackusage < $< | sort -n -k 1 -r > $@
+	$(NOECHO)$(OBJDUMP) -Mreg-names-raw -d $< | $(LOCAL_DIR)/stackusage | $(CPPFILT) | sort -n -k 1 -r > $@
 
 EXTRA_BUILDDEPS += $(OUTELF).stack
 GENERATED += $(OUTELF).stack

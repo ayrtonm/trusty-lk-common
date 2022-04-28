@@ -15,6 +15,8 @@ MODULES :=
 $(info including $(INCMODULES))
 include $(addsuffix /rules.mk,$(INCMODULES))
 
+INCMODULES :=
+
 include make/recurse.mk
 
 endif
