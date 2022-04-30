@@ -74,6 +74,35 @@ cbuf_t console_input_cbuf;
 static uint8_t console_cbuf_buf[CONSOLE_BUF_LEN];
 #endif // CONSOLE_HAS_INPUT_BUFFER
 
+#if EARLY_LOG_BUFFER_SIZE
+/*
+ * Very early boot logs are captured in a buffer, and then dumped to the
+ * first print callback that is registered
+ */
+
+static char early_log_buffer[EARLY_LOG_BUFFER_SIZE];
+static char* early_log_writeptr = early_log_buffer;
+static char* early_log_end = early_log_buffer + sizeof(early_log_buffer);
+
+static void early_log_print(const char *str, size_t len)
+{
+    size_t remaining = early_log_end - early_log_writeptr;
+    if (remaining == 0) {
+        return;
+    }
+    if (len > remaining) {
+        /*
+         * Don't bother with partial lines, just mark the buffer as full
+         * and drop all further logs
+         */
+        early_log_end = early_log_writeptr;
+        return;
+    }
+    memcpy(early_log_writeptr, str, len);
+    early_log_writeptr += len;
+}
+#endif
+
 /* print lock must be held when invoking out, outs, outc */
 static void out_count(const char *str, size_t len)
 {
@@ -83,6 +112,17 @@ static void out_count(const char *str, size_t len)
     spin_lock_saved_state_t state = 0;
 
     DEBUG_ASSERT(need_lock || lock_held_by == arch_curr_cpu_num());
+
+    /* copy to the early log buffer if configured */
+#if EARLY_LOG_BUFFER_SIZE
+    if (need_lock) {
+        spin_lock_save(&print_spin_lock, &state, PRINT_LOCK_FLAGS);
+    }
+    early_log_print(str, len);
+    if (need_lock) {
+        spin_unlock_restore(&print_spin_lock, state, PRINT_LOCK_FLAGS);
+    }
+#endif
 
     /* print to any registered loggers */
     if (!list_is_empty(&print_callbacks)) {
@@ -174,6 +214,17 @@ void register_print_callback(print_callback_t *cb)
     spin_lock_saved_state_t state;
     spin_lock_save(&print_spin_lock, &state, PRINT_LOCK_FLAGS);
 
+#if EARLY_LOG_BUFFER_SIZE
+    size_t early_log_len = early_log_writeptr - early_log_buffer;
+    if (early_log_len) {
+        if (cb->print) {
+            cb->print(cb, early_log_buffer, early_log_len);
+        }
+        if (cb->commit) {
+            cb->commit(cb);
+        }
+    }
+#endif
     list_add_head(&print_callbacks, &cb->entry);
 
     spin_unlock_restore(&print_spin_lock, state, PRINT_LOCK_FLAGS);

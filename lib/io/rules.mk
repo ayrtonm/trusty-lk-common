@@ -13,6 +13,12 @@ ifeq (true,$(call TOBOOL,$(CONSOLE_CALLBACK_DISABLES_SERIAL)))
 MODULE_DEFINES += CONSOLE_CALLBACK_DISABLES_SERIAL=1
 endif
 
+# The size of the buffer to capture early boot logs in, which will
+# then be dumped to the first print callback to register.
+# Set to 0 to disable.
+CONSOLE_EARLY_LOG_BUFFER_SIZE ?= 4096
+MODULE_DEFINES += EARLY_LOG_BUFFER_SIZE=$(CONSOLE_EARLY_LOG_BUFFER_SIZE)
+
 endif
 
 MODULE_SRCS += \
