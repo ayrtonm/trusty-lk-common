@@ -298,6 +298,11 @@ ifeq ($(call TOBOOL,$(KERNEL_BASE_ASLR)), true)
 GLOBAL_DEFINES += KERNEL_BASE_ASLR=1
 endif
 
+# We are not Linux, and some libraries check this macro
+# and incorrectly target the wrong OS
+# TODO(b/224064243): remove this when we have a proper triple
+GLOBAL_SHARED_COMPILEFLAGS += -U__linux__
+
 # allow additional defines from outside the build system
 ifneq ($(EXTERNAL_DEFINES),)
 GLOBAL_DEFINES += $(EXTERNAL_DEFINES)
