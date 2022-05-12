@@ -61,18 +61,23 @@ MODULES += $(MODULE_DEPS)
 #$(info MODULE_DEPS $(MODULE_DEPS))
 #$(info MODULE_SRCS $(MODULE_SRCS))
 
-MODULE_DEFINES += MODULE_COMPILEFLAGS=\"$(subst $(SPACE),_,$(MODULE_COMPILEFLAGS))\"
-MODULE_DEFINES += MODULE_CFLAGS=\"$(subst $(SPACE),_,$(MODULE_CFLAGS))\"
-MODULE_DEFINES += MODULE_CPPFLAGS=\"$(subst $(SPACE),_,$(MODULE_CPPFLAGS))\"
-MODULE_DEFINES += MODULE_ASMFLAGS=\"$(subst $(SPACE),_,$(MODULE_ASMFLAGS))\"
-MODULE_DEFINES += MODULE_RUSTFLAGS=\"$(subst $(SPACE),_,$(MODULE_RUSTFLAGS))\"
-MODULE_DEFINES += MODULE_RUST_ENV=\"$(subst $(SPACE),_,$(MODULE_RUST_ENV))\"
-MODULE_DEFINES += MODULE_LDFLAGS=\"$(subst $(SPACE),_,$(MODULE_LDFLAGS))\"
-MODULE_DEFINES += MODULE_OPTFLAGS=\"$(subst $(SPACE),_,$(MODULE_OPTFLAGS))\"
-MODULE_DEFINES += MODULE_INCLUDES=\"$(subst $(SPACE),_,$(MODULE_INCLUDES))\"
-MODULE_DEFINES += MODULE_SRCDEPS=\"$(subst $(SPACE),_,$(MODULE_SRCDEPS))\"
-MODULE_DEFINES += MODULE_DEPS=\"$(subst $(SPACE),_,$(MODULE_DEPS))\"
-MODULE_DEFINES += MODULE_SRCS=\"$(subst $(SPACE),_,$(MODULE_SRCS))\"
+# Turn spaces into underscores and escape quotes for the module_config.h header
+define clean_defines
+$(subst $(SPACE),_,$(subst \",\\\\\",$(1)))
+endef
+
+MODULE_DEFINES += MODULE_COMPILEFLAGS=\"$(call clean_defines,$(MODULE_COMPILEFLAGS))\"
+MODULE_DEFINES += MODULE_CFLAGS=\"$(call clean_defines,$(MODULE_CFLAGS))\"
+MODULE_DEFINES += MODULE_CPPFLAGS=\"$(call clean_defines,$(MODULE_CPPFLAGS))\"
+MODULE_DEFINES += MODULE_ASMFLAGS=\"$(call clean_defines,$(MODULE_ASMFLAGS))\"
+MODULE_DEFINES += MODULE_RUSTFLAGS=\"$(call clean_defines,$(MODULE_RUSTFLAGS))\"
+MODULE_DEFINES += MODULE_RUST_ENV=\"$(call clean_defines,$(MODULE_RUST_ENV))\"
+MODULE_DEFINES += MODULE_LDFLAGS=\"$(call clean_defines,$(MODULE_LDFLAGS))\"
+MODULE_DEFINES += MODULE_OPTFLAGS=\"$(call clean_defines,$(MODULE_OPTFLAGS))\"
+MODULE_DEFINES += MODULE_INCLUDES=\"$(call clean_defines,$(MODULE_INCLUDES))\"
+MODULE_DEFINES += MODULE_SRCDEPS=\"$(call clean_defines,$(MODULE_SRCDEPS))\"
+MODULE_DEFINES += MODULE_DEPS=\"$(call clean_defines,$(MODULE_DEPS))\"
+MODULE_DEFINES += MODULE_SRCS=\"$(call clean_defines,$(MODULE_SRCS))\"
 
 # Handle common kernel module flags. Common userspace flags are found in
 # user/base/make/common_flags.mk
