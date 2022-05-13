@@ -91,6 +91,9 @@ GLOBAL_KERNEL_LDFLAGS += $(addprefix -L,$(LKINC))
 
 GLOBAL_LTO_COMPILEFLAGS += -fvisibility=hidden -flto=thin
 
+# Rust flags for proc macros
+GLOBAL_HOST_RUSTFLAGS :=
+
 # Rust flags, based on the flags used in AOSP
 GLOBAL_SHARED_RUSTFLAGS := -C codegen-units=1 -C debuginfo=2 -C opt-level=3 -C relocation-model=pic
 GLOBAL_SHARED_RUSTFLAGS += -C overflow-checks=on
@@ -336,6 +339,7 @@ SIZE := $(TOOLCHAIN_PREFIX)size
 NM := $(TOOLCHAIN_PREFIX)nm
 STRIP := $(TOOLCHAIN_PREFIX)strip
 
+GLOBAL_HOST_RUSTFLAGS += -C linker="$(CLANG_BINDIR)/clang++" -C link-args="-B $(CLANG_BINDIR) -fuse-ld=lld"
 GLOBAL_SHARED_RUSTFLAGS += -C linker="$(LD)"
 
 # TODO: we could find the runtime like this.
