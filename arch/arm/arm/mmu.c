@@ -612,6 +612,14 @@ int arch_mmu_map(arch_aspace_t *aspace, addr_t vaddr, paddr_t paddr, size_t coun
                     __FALLTHROUGH;
                 }
                 case MMU_MEMORY_L1_DESCRIPTOR_PAGE_TABLE: {
+                    uint flag_secure = !(flags & ARCH_MMU_FLAG_NS);
+                    uint entry_secure = !(tt_entry & MMU_MEMORY_L1_PAGETABLE_NON_SECURE);
+                    if (flag_secure != entry_secure) {
+                        TRACEF("attempted to allocate secure and non-secure "
+                               "pages in the same l2 pagetable\n");
+                        goto done;
+                    }
+
                     uint32_t *l2_table = paddr_to_kvaddr(MMU_MEMORY_L1_PAGE_TABLE_ADDR(tt_entry));
                     LTRACEF("l2_table at %p\n", l2_table);
 
