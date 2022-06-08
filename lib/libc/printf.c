@@ -28,11 +28,25 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+* We are overriding the RELEASE_BUILD behavior on this file to always disable filtering on test builds.
+*/
+#if TEST_BUILD
+#undef RELEASE_BUILD
+#define RELEASE_BUILD 0
+#endif
+
+#ifdef UTEST_BUILD
+#include "test_includes/printf_test.h"
+#endif
+
 #if WITH_NO_FP
 #define FLOAT_PRINTF 0
 #else
 #define FLOAT_PRINTF 1
 #endif
+
+static int _printf_unfiltered_engine(_printf_engine_output_func out, void *state, const char *fmt, va_list ap);
 
 int sprintf(char *str, const char *fmt, ...)
 {
@@ -95,7 +109,7 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap)
     args.len = len;
     args.pos = 0;
 
-    wlen = _printf_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
+    wlen = _printf_unfiltered_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
     if (args.pos >= len)
         str[len-1] = '\0';
     else
@@ -103,20 +117,21 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap)
     return wlen;
 }
 
-#define LONGFLAG       0x00000001
-#define LONGLONGFLAG   0x00000002
-#define HALFFLAG       0x00000004
-#define HALFHALFFLAG   0x00000008
-#define SIZETFLAG      0x00000010
-#define INTMAXFLAG     0x00000020
-#define PTRDIFFFLAG    0x00000040
-#define ALTFLAG        0x00000080
-#define CAPSFLAG       0x00000100
-#define SHOWSIGNFLAG   0x00000200
-#define SIGNEDFLAG     0x00000400
-#define LEFTFORMATFLAG 0x00000800
-#define LEADZEROFLAG   0x00001000
-#define BLANKPOSFLAG   0x00002000
+#define LONGFLAG            0x00000001
+#define LONGLONGFLAG        0x00000002
+#define HALFFLAG            0x00000004
+#define HALFHALFFLAG        0x00000008
+#define SIZETFLAG           0x00000010
+#define INTMAXFLAG          0x00000020
+#define PTRDIFFFLAG         0x00000040
+#define ALTFLAG             0x00000080
+#define CAPSFLAG            0x00000100
+#define SHOWSIGNFLAG        0x00000200
+#define SIGNEDFLAG          0x00000400
+#define LEFTFORMATFLAG      0x00000800
+#define LEADZEROFLAG        0x00001000
+#define BLANKPOSFLAG        0x00002000
+#define FILTERED_ON_RELEASE 0x00004000
 
 __NO_INLINE static char *longlong_to_string(char *buf, unsigned long long n, size_t len, uint flag, char *signchar)
 {
@@ -130,6 +145,16 @@ __NO_INLINE static char *longlong_to_string(char *buf, unsigned long long n, siz
     }
 
     buf[--pos] = 0;
+#if RELEASE_BUILD
+    if (flag & FILTERED_ON_RELEASE) {
+        if (n > 4096) {
+            buf[--pos] = '*';
+            buf[--pos] = '*';
+            buf[--pos] = '*';
+            return &buf[pos];
+        }
+    }
+#endif
 
     /* only do the math if the number is >= 10 */
     while (n >= 10) {
@@ -162,6 +187,17 @@ __NO_INLINE static char *longlong_to_hexstring(char *buf, unsigned long long u, 
     const char *table = (flag & CAPSFLAG) ? hextable_caps : hextable;
 
     buf[--pos] = 0;
+#if RELEASE_BUILD
+    if (flag & FILTERED_ON_RELEASE) {
+        if ((u > 4096) &&
+            (u < (unsigned long long)(-4096))) {
+            buf[--pos] = '*';
+            buf[--pos] = '*';
+            buf[--pos] = '*';
+            return &buf[pos];
+        }
+    }
+#endif
     do {
         unsigned int digit = u % 16;
         u /= 16;
@@ -402,7 +438,7 @@ __NO_INLINE static char *double_to_hexstring(char *buf, size_t len, double d, ui
 
 #endif // FLOAT_PRINTF
 
-int _printf_engine(_printf_engine_output_func out, void *state, const char *fmt, va_list ap)
+static int _printf_engine_internal(_printf_engine_output_func out, void *state, const char *fmt, va_list ap, bool filtered)
 {
     int err = 0;
     char c;
@@ -422,7 +458,11 @@ int _printf_engine(_printf_engine_output_func out, void *state, const char *fmt,
 
     for (;;) {
         /* reset the format state */
-        flags = 0;
+        if (filtered) {
+            flags = FILTERED_ON_RELEASE;
+        } else {
+            flags = 0;
+        }
         format_num = 0;
         signchar = '\0';
 
@@ -633,4 +673,14 @@ _output_string:
 
 exit:
     return (err < 0) ? err : (int)chars_written;
+}
+
+int _printf_engine(_printf_engine_output_func out, void *state, const char *fmt, va_list ap)
+{
+    return _printf_engine_internal(out, state, fmt, ap, true);
+}
+
+static int _printf_unfiltered_engine(_printf_engine_output_func out, void *state, const char *fmt, va_list ap)
+{
+    return _printf_engine_internal(out, state, fmt, ap, false);
 }

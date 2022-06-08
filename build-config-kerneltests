@@ -16,6 +16,8 @@
 
 [
     hosttest("binary_search_tree_test"),
+    hosttest("libc_printf_release_test"),
+    hosttest("libc_printf_test"),
     hosttest("list_test"),
     porttest("com.android.kernel.scstest"),
     porttest("com.android.kernel.timertest"),

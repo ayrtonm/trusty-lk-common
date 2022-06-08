@@ -1,4 +1,5 @@
-# Copyright (c) 2019 LK Trusty Authors. All Rights Reserved.
+#
+# Copyright (c) 2022 LK Trusty Authors. All Rights Reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -20,8 +21,29 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-MODULES += \
-	$(GET_LOCAL_DIR)/binary_search_tree/hosttest \
-	$(GET_LOCAL_DIR)/libc/hosttest \
-	$(GET_LOCAL_DIR)/libc/hosttest_release \
+LOCAL_DIR := $(GET_LOCAL_DIR)
 
+HOST_TEST := libc_printf_release_test
+
+GTEST_DIR := external/googletest/googletest
+
+HOST_FLAGS += -DUTEST_BUILD -DRELEASE_BUILD=1
+
+HOST_SRCS := \
+        $(LOCAL_DIR)/../test_common/libc_printf_tests.cpp \
+        $(GTEST_DIR)/src/gtest-all.cc \
+        $(GTEST_DIR)/src/gtest_main.cc \
+        $(LOCAL_DIR)/../include/printf.h \
+        $(LOCAL_DIR)/../printf.c \
+        $(LOCAL_DIR)/../test_common/test_functions.c \
+
+HOST_INCLUDE_DIRS := \
+        $(GTEST_DIR)/include \
+        $(GTEST_DIR) \
+        $(LOCAL_DIR)/../test_includes \
+
+HOST_LIBS := \
+        stdc++ \
+        pthread \
+
+include make/host_test.mk
