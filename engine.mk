@@ -253,6 +253,16 @@ GLOBAL_DEFINES += \
 	TEST_BUILD=1
 endif
 
+#check if we are doing a release build, if not sure assume release
+RELEASE_BUILD ?= true
+ifeq ($(RELEASE_BUILD),false)
+GLOBAL_DEFINES += \
+	RELEASE_BUILD=0
+else
+GLOBAL_DEFINES += \
+	RELEASE_BUILD=1
+endif
+
 # ASLR
 ifneq ($(ASLR),false)
 GLOBAL_DEFINES += \
