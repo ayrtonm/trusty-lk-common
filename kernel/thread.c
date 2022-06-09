@@ -933,11 +933,9 @@ static void thread_preempt_inner(bool lock_held)
 void thread_preempt(void)
 {
     /*
-     * we refain from asserting the lock
-     * being held due to performance concern
-     * as this legacy function is heavily
-     * invoked and its usage context is not
-     * updated.
+     * We refrain from asserting that the thread lock is not held due to
+     * performance concerns as this legacy function is called frequently and
+     * its usage context is not updated.
      * DEBUG_ASSERT(!thread_lock_held());
      */
     thread_preempt_inner(false);
