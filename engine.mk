@@ -190,6 +190,11 @@ endif
 # module archive.
 GLOBAL_KERNEL_LDFLAGS += --whole-archive
 
+# We are not Linux, and some libraries check this macro
+# and incorrectly target the wrong OS
+# TODO(b/224064243): remove this when we have a proper triple
+GLOBAL_SHARED_COMPILEFLAGS += -U__linux__
+
 ifneq ($(GLOBAL_COMPILEFLAGS),)
 $(error Setting GLOBAL_COMPILEFLAGS directly from project or platform makefiles is no longer supported. Please use either GLOBAL_SHARED_COMPILEFLAGS or GLOBAL_KERNEL_COMPILEFLAGS.)
 endif
@@ -310,11 +315,6 @@ endif
 ifeq ($(call TOBOOL,$(KERNEL_BASE_ASLR)), true)
 GLOBAL_DEFINES += KERNEL_BASE_ASLR=1
 endif
-
-# We are not Linux, and some libraries check this macro
-# and incorrectly target the wrong OS
-# TODO(b/224064243): remove this when we have a proper triple
-GLOBAL_SHARED_COMPILEFLAGS += -U__linux__
 
 # allow additional defines from outside the build system
 ifneq ($(EXTERNAL_DEFINES),)
