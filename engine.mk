@@ -342,12 +342,12 @@ endif
 CC := $(CCACHE) $(CLANG_BINDIR)/clang
 AR := $(CLANG_BINDIR)/llvm-ar
 LD := $(CLANG_BINDIR)/ld.lld
-OBJDUMP := $(TOOLCHAIN_PREFIX)objdump
-OBJCOPY := $(TOOLCHAIN_PREFIX)objcopy
-CPPFILT := $(TOOLCHAIN_PREFIX)c++filt
-SIZE := $(TOOLCHAIN_PREFIX)size
-NM := $(TOOLCHAIN_PREFIX)nm
-STRIP := $(TOOLCHAIN_PREFIX)strip
+OBJDUMP := $(CLANG_BINDIR)/llvm-objdump
+OBJCOPY := $(CLANG_BINDIR)/llvm-objcopy
+CPPFILT := $(CLANG_BINDIR)/llvm-cxxfilt
+SIZE := $(CLANG_BINDIR)/llvm-size
+NM := $(CLANG_BINDIR)/llvm-nm
+STRIP := $(CLANG_BINDIR)/llvm-strip
 
 GLOBAL_HOST_RUSTFLAGS += -C linker="$(CLANG_BINDIR)/clang++" -C link-args="-B $(CLANG_BINDIR) -fuse-ld=lld"
 GLOBAL_SHARED_RUSTFLAGS += -C linker="$(LD)"
