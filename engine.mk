@@ -51,8 +51,8 @@ TEST_BUILD ?=
 DEBUG ?= 2
 
 # LOG_LEVEL_KERNEL controls LK_LOGLEVEL
-# when LOG_LEVEL_KERNEL = 1, dprintf INFO level is enabled
-# when LOG_LEVEL_KERNEL = 2, dprintf SPEW level is enabled
+# when LOG_LEVEL_KERNEL = 1, dprintf LK_DEBUGLEVEL_INFO level is enabled
+# when LOG_LEVEL_KERNEL = 2, dprintf LK_DEBUGLEVEL_SPEW level is enabled
 LOG_LEVEL_KERNEL ?= $(DEBUG)
 
 # LOG_LEVEL_USER controls TLOG_LVL_DEFAULT

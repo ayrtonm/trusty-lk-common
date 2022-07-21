@@ -33,10 +33,10 @@
 #endif
 
 /* debug levels */
-#define CRITICAL 0
-#define ALWAYS 0
-#define INFO 1
-#define SPEW 2
+#define LK_DEBUGLEVEL_CRITICAL 0
+#define LK_DEBUGLEVEL_ALWAYS 0
+#define LK_DEBUGLEVEL_INFO 1
+#define LK_DEBUGLEVEL_SPEW 2
 
 __BEGIN_CDECLS
 
@@ -65,7 +65,7 @@ static inline void hexdump8(const void *ptr, size_t len)
     hexdump8_ex(ptr, len, (uint64_t)((addr_t)ptr));
 }
 
-#define dprintf(level, x...) do { if ((level) <= LK_LOGLEVEL) { printf(x); } } while (0)
+#define dprintf(level, x...) do { if ((LK_DEBUGLEVEL_##level) <= LK_LOGLEVEL) { printf(x); } } while (0)
 
 /* spin the cpu for a period of (short) time */
 void spin(uint32_t usecs);
