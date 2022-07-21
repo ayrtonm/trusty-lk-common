@@ -249,7 +249,7 @@ static inline void thread_lock_complete(void) {
 static inline void thread_unlock_prepare(void) {
     DEBUG_ASSERT(arch_ints_disabled());
     DEBUG_ASSERT(thread_lock_owner_get() == arch_curr_cpu_num());
-    atomic_store_explicit(&thread_lock_owner, SMP_MAX_CPUS,
+    atomic_store_explicit(&thread_lock_owner, (uint)SMP_MAX_CPUS,
                           memory_order_relaxed);
 }
 
