@@ -38,7 +38,7 @@
 #define __CONST __attribute((const))
 #define __NO_RETURN __attribute__((noreturn))
 #define __MALLOC __attribute__((malloc))
-#define __WEAK __attribute__((weak))
+#define __WEAK __attribute__((__weak__))
 #define __GNU_INLINE __attribute__((gnu_inline))
 #define __GET_CALLER(x) __builtin_return_address(0)
 #define __GET_FRAME(x) __builtin_frame_address(0)
@@ -123,7 +123,7 @@
 /* compiler fence */
 #define CF do { __asm__ volatile("" ::: "memory"); } while(0)
 
-#define __WEAK_ALIAS(x) __attribute__((weak, alias(x)))
+#define __WEAK_ALIAS(x) __attribute__((__weak__, alias(x)))
 #define __ALIAS(x) __attribute__((alias(x)))
 
 #define __EXPORT __attribute__ ((visibility("default")))
