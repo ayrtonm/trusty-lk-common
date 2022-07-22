@@ -107,7 +107,7 @@ void miniheap_dump(void)
 // nearby ones if possible. Returns base of whatever chunk it became in the list.
 static struct free_heap_chunk *heap_insert_free_chunk(struct free_heap_chunk *chunk)
 {
-#if LK_DEBUGLEVEL > LK_DEBUGLEVEL_INFO
+#if LK_DEBUGLEVEL > INFO
     vaddr_t chunk_end = (vaddr_t)chunk + chunk->len;
 #endif
 
