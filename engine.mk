@@ -75,7 +75,7 @@ GLOBAL_SHARED_INCLUDES := $(addsuffix /include/shared,$(LKINC))
 GLOBAL_USER_INCLUDES := $(addsuffix /include/user,$(LKINC))
 GLOBAL_INCLUDES := $(BUILDDIR) $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_KERNEL_INCLUDES)
 GLOBAL_OPTFLAGS ?= $(ARCH_OPTFLAGS)
-GLOBAL_SHARED_COMPILEFLAGS := -g -finline -include $(CONFIGHEADER)
+GLOBAL_SHARED_COMPILEFLAGS := -glldb -fdebug-macro -include $(CONFIGHEADER)
 GLOBAL_SHARED_COMPILEFLAGS += -Werror -Wall -Wsign-compare -Wno-multichar -Wno-unused-function -Wno-unused-label
 GLOBAL_SHARED_COMPILEFLAGS += -fno-short-enums -fno-common
 GLOBAL_SHARED_COMPILEFLAGS += -fno-omit-frame-pointer
@@ -183,6 +183,14 @@ include platform/$(PLATFORM)/rules.mk
 ifeq ($(WITH_LINKER_GC),1)
 GLOBAL_SHARED_COMPILEFLAGS += -ffunction-sections -fdata-sections
 GLOBAL_SHARED_LDFLAGS += --gc-sections
+endif
+
+# Control function inlining
+KERNEL_INLINE_FUNCTIONS ?= true
+ifeq ($(call TOBOOL,$(KERNEL_INLINE_FUNCTIONS)),true)
+GLOBAL_KERNEL_COMPILEFLAGS += -finline
+else
+GLOBAL_KERNEL_COMPILEFLAGS += -fno-inline-functions
 endif
 
 # We need all .lk_init entries to be included, even though they are not
