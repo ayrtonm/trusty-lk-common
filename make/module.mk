@@ -165,7 +165,9 @@ $(addsuffix .d,$(MODULE_RSOBJS)):
 MODULE_RSSRC := $(filter %.rs,$(MODULE_SRCS))
 $(MODULE_RSOBJS): $(MODULE_RSSRC) $(MODULE_SRCDEPS) $(MODULE_EXTRA_OBJECTS) $(MODULE_LIBRARIES) $(addsuffix .d,$(MODULE_RSOBJS))
 	@$(MKDIR)
-	@echo compiling $<
+	@echo generating documentation for $<
+	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTDOC) --deny warnings -L $(TRUSTY_LIBRARY_BUILDDIR) $(ARCH_RUSTFLAGS) $(MODULE_RUSTDOCFLAGS) --out-dir $(MODULE_RUSTDOC_OUT_DIR) $<
+	@echo compiling rust module $<
 	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTC) $(GLOBAL_RUSTFLAGS) $(ARCH_RUSTFLAGS) $(MODULE_RUSTFLAGS) $< --emit "dep-info=$@.d" -o $@
 
 -include $(addsuffix .d,$(MODULE_RSOBJS))
