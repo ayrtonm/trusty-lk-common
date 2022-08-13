@@ -29,3 +29,4 @@ void arm_gicv3_configure_irq_locked(unsigned int cpu, unsigned int vector);
 void arm_gicv3_suspend_cpu(unsigned int cpu);
 void arm_gicv3_resume_cpu_locked(unsigned int cpu, bool gicd);
 uint64_t arm_gicv3_sgir_val(u_int irq, size_t cpu_num);
+void arm_gicv3_wait_for_write_complete(void);

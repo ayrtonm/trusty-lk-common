@@ -188,8 +188,14 @@ static void gic_set_enable(uint vector, bool enable)
 #endif
     if (enable)
         GICDREG_WRITE(0, GICD_ISENABLER(reg), mask);
-    else
+    else {
         GICDREG_WRITE(0, GICD_ICENABLER(reg), mask);
+
+#if GIC_VERSION > 2
+        /* for GIC V3, make sure write is complete */
+        arm_gicv3_wait_for_write_complete();
+#endif
+    }
 }
 
 static void arm_gic_init_percpu(uint level)

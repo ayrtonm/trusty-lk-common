@@ -108,13 +108,18 @@ static void gicv3_gicr_init(void) {
 /* GICD_CTRL Register write pending bit */
 #define GICD_CTLR_RWP  (0x1U << 31)
 
+void arm_gicv3_wait_for_write_complete(void) {
+    /* wait until write complete */
+    while (GICDREG_READ(0, GICD_CTLR) & GICD_CTLR_RWP) {
+    }
+}
+
 static void gicv3_gicd_ctrl_write(uint32_t val) {
     /* write CTRL register */
     GICDREG_WRITE(0, GICD_CTLR, val);
 
     /* wait until write complete */
-    while (GICDREG_READ(0, GICD_CTLR) & GICD_CTLR_RWP) {
-    }
+    arm_gicv3_wait_for_write_complete();
 }
 
 static void gicv3_gicd_setup_irq_group(uint32_t vector, uint32_t grp) {
