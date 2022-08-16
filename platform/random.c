@@ -22,6 +22,7 @@
  */
 
 #include <assert.h>
+#include <debug.h>
 #include <platform/random.h>
 #include <rand.h>
 
@@ -31,6 +32,14 @@
  */
 
 __WEAK void platform_random_get_bytes(uint8_t *buf, size_t len) {
+    /* Print a warning about using this, but only once per boot */
+    static bool printed_warning = false;
+    if (unlikely(!printed_warning)) {
+        dprintf(CRITICAL,
+                "FAKE RNG implementation MUST be replaced with the REAL one\n");
+        printed_warning = true;
+    }
+
     DEBUG_ASSERT(buf);
     while (len) {
         /* lk's rand() returns 32 pseudo random bits */
