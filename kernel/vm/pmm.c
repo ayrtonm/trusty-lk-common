@@ -32,6 +32,7 @@
 #include <pow2.h>
 #include <lib/console.h>
 #include <kernel/mutex.h>
+#include <kernel/spinlock.h>
 
 #define LOCAL_TRACE 0
 
@@ -50,6 +51,7 @@ static inline struct pmm_vmm_obj* vmm_obj_to_pmm_obj(struct vmm_obj *vmm_obj)
 
 static struct list_node arena_list = LIST_INITIAL_VALUE(arena_list);
 static mutex_t lock = MUTEX_INITIAL_VALUE(lock);
+static spin_lock_t aux_slock = SPIN_LOCK_INITIAL_VALUE;
 
 #define PAGE_BELONGS_TO_ARENA(page, arena) \
     (((uintptr_t)(page) >= (uintptr_t)(arena)->page_array) && \
@@ -109,6 +111,42 @@ vm_page_t *paddr_to_vm_page(paddr_t addr)
     return NULL;
 }
 
+static void insert_arena(pmm_arena_t *arena)
+{
+    /* walk the arena list and add arena based on priority order */
+    pmm_arena_t *a;
+    list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
+        if (a->priority > arena->priority) {
+            list_add_before(&a->node, &arena->node);
+            return;
+        }
+    }
+
+    /* walked off the end, add it to the end of the list */
+    list_add_tail(&arena_list, &arena->node);
+}
+
+static void init_page_array(pmm_arena_t *arena, size_t page_count,
+                            size_t reserved)
+{
+    /* clear page array */
+    memset(arena->page_array, 0, page_count * sizeof(vm_page_t));
+
+    /* add them to the free list, skipping reserved pages */
+    for (size_t i = 0; i < page_count; i++) {
+        vm_page_t *p = &arena->page_array[i];
+
+        if (i < reserved) {
+            p->flags |= VM_PAGE_FLAG_NONFREE;
+            continue;
+        }
+
+        list_add_tail(&arena->free_list, &p->node);
+
+        arena->free_count++;
+    }
+}
+
 status_t pmm_add_arena(pmm_arena_t *arena)
 {
     LTRACEF("arena %p name '%s' base 0x%lx size 0x%zx\n", arena, arena->name, arena->base, arena->size);
@@ -118,39 +156,107 @@ status_t pmm_add_arena(pmm_arena_t *arena)
     DEBUG_ASSERT(IS_PAGE_ALIGNED(arena->size));
     DEBUG_ASSERT(arena->size > 0);
 
-    /* walk the arena list and add arena based on priority order */
-    pmm_arena_t *a;
-    list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
-        if (a->priority > arena->priority) {
-            list_add_before(&a->node, &arena->node);
-            goto done_add;
-        }
+    /* zero out some of the structure */
+    arena->free_count = 0;
+    list_initialize(&arena->free_list);
+
+    if (arena->flags & PMM_ARENA_FLAG_KMAP) {
+        /* lookup kernel mapping address */
+        arena->kvaddr = (vaddr_t)paddr_to_kvaddr(arena->base);
+        ASSERT(arena->kvaddr);
+    } else {
+        arena->kvaddr = 0;
     }
 
-    /* walked off the end, add it to the end of the list */
-    list_add_tail(&arena_list, &arena->node);
+    /* allocate an array of pages to back this one */
+    size_t page_count = arena->size / PAGE_SIZE;
+    arena->page_array = boot_alloc_mem(page_count * sizeof(vm_page_t));
 
-done_add:
+    /* initialize it */
+    init_page_array(arena, page_count, 0);
+
+    /* Add arena to tracking list */
+    insert_arena(arena);
+
+    return NO_ERROR;
+}
+
+void *pmm_paddr_to_kvaddr(paddr_t pa) {
+    pmm_arena_t *a;
+    void *va = NULL;
+    spin_lock_saved_state_t state;
+
+    spin_lock_save(&aux_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
+    list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
+        if (a->kvaddr && ADDRESS_IN_ARENA(pa, a)) {
+            va = (void *)(a->kvaddr + (pa - a->base));
+            break;
+        }
+    }
+    spin_unlock_restore(&aux_slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
+
+    return va;
+}
+
+status_t pmm_add_arena_late(pmm_arena_t *arena)
+{
+    void *va;
+    size_t page_count;
+    size_t pages_reserved;
+    spin_lock_saved_state_t state;
+
+    LTRACEF("arena %p name '%s' base 0x%lx size 0x%zx\n",
+            arena, arena->name, arena->base, arena->size);
+
+    DEBUG_ASSERT(arena);
+    DEBUG_ASSERT(IS_PAGE_ALIGNED(arena->base));
+    DEBUG_ASSERT(IS_PAGE_ALIGNED(arena->size));
+    DEBUG_ASSERT(arena->size > 0);
 
     /* zero out some of the structure */
     arena->free_count = 0;
     list_initialize(&arena->free_list);
 
     /* allocate an array of pages to back this one */
-    size_t page_count = arena->size / PAGE_SIZE;
-    arena->page_array = boot_alloc_mem(page_count * sizeof(vm_page_t));
+    page_count = arena->size / PAGE_SIZE;
 
-    /* initialize all of the pages */
-    memset(arena->page_array, 0, page_count * sizeof(vm_page_t));
+    /* reserve pages for page_array */
+    pages_reserved =
+        round_up(page_count * sizeof(vm_page_t), PAGE_SIZE) / PAGE_SIZE;
 
-    /* add them to the free list */
-    for (size_t i = 0; i < page_count; i++) {
-        vm_page_t *p = &arena->page_array[i];
+    if (arena->flags & PMM_ARENA_FLAG_KMAP) {
+        /* arena is already kmapped */
+        va = paddr_to_kvaddr(arena->base);
+        if (!va) {
+            return ERR_INVALID_ARGS;
+        }
+    } else {
+        /* map it */
+        status_t rc = vmm_alloc_physical_etc(vmm_get_kernel_aspace(),
+                                             arena->name, arena->size,
+                                             &va, 0, &arena->base, 1,
+                                             0, ARCH_MMU_FLAG_CACHED);
+        if (rc < 0) {
+            return rc;
+        }
 
-        list_add_tail(&arena->free_list, &p->node);
-
-        arena->free_count++;
+        arena->flags |= PMM_ARENA_FLAG_KMAP;
     }
+
+    /* set kmap address */
+    arena->kvaddr = (vaddr_t)va;
+
+    /* place page tracking structure at base of arena */
+    arena->page_array = va;
+
+    init_page_array(arena, page_count, pages_reserved);
+
+    /* Insert arena into tracking structure */
+    mutex_acquire(&lock);
+    spin_lock_save(&aux_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
+    insert_arena(arena);
+    spin_unlock_restore(&aux_slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
+    mutex_release(&lock);
 
     return NO_ERROR;
 }

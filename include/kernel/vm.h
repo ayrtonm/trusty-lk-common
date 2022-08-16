@@ -133,6 +133,7 @@ typedef struct pmm_arena {
     uint priority;
 
     paddr_t base;
+    vaddr_t kvaddr;
     size_t  size;
 
     size_t free_count;
@@ -145,6 +146,9 @@ typedef struct pmm_arena {
 
 /* Add a pre-filled memory arena to the physical allocator. */
 status_t pmm_add_arena(pmm_arena_t *arena);
+
+/* Add a pre-filled arena during late (post vm) stage of boot */
+status_t pmm_add_arena_late(pmm_arena_t *arena);
 
 /* Optional flags passed to pmm_alloc */
 #define PMM_ALLOC_FLAG_KMAP (1U << 0)

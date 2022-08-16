@@ -218,7 +218,7 @@ void *paddr_to_kvaddr(paddr_t pa)
         }
         map++;
     }
-    return NULL;
+    return pmm_paddr_to_kvaddr(pa);
 }
 
 paddr_t vaddr_to_paddr(void *ptr)

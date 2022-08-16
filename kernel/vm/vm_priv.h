@@ -33,3 +33,5 @@ extern uintptr_t boot_alloc_end;
 void vmm_init_preheap(void);
 void vmm_init(void);
 
+/* private interface between pmm and vm */
+void *pmm_paddr_to_kvaddr(paddr_t pa);
