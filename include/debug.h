@@ -33,10 +33,19 @@
 #endif
 
 /* debug levels */
-#define CRITICAL 0
-#define ALWAYS 0
-#define INFO 1
-#define SPEW 2
+#define LK_DEBUGLEVEL_CRITICAL 0
+#define LK_DEBUGLEVEL_ALWAYS 0
+#define LK_DEBUGLEVEL_INFO 1
+#define LK_DEBUGLEVEL_SPEW 2
+
+/* Deprecated macros for debug levels. LK_DEBUGLEVEL_NO_ALIASES may optionally
+ * be set to avoid name collisions with macros defined in other headers */
+#if !LK_DEBUGLEVEL_NO_ALIASES
+#define CRITICAL LK_DEBUGLEVEL_CRITICAL
+#define ALWAYS LK_DEBUGLEVEL_ALWAYS
+#define INFO LK_DEBUGLEVEL_INFO
+#define SPEW LK_DEBUGLEVEL_SPEW
+#endif
 
 __BEGIN_CDECLS
 
@@ -65,7 +74,12 @@ static inline void hexdump8(const void *ptr, size_t len)
     hexdump8_ex(ptr, len, (uint64_t)((addr_t)ptr));
 }
 
-#define dprintf(level, x...) do { if ((level) <= LK_LOGLEVEL) { printf(x); } } while (0)
+#define _dprintf_internal(level, x...) do { if ((level) <= LK_LOGLEVEL) { printf(x); } } while (0)
+#if LK_DEBUGLEVEL_NO_ALIASES
+#define dprintf(level, x...) _dprintf_internal(LK_DEBUGLEVEL_##level, ##x)
+#else
+#define dprintf(level, x...) _dprintf_internal(level, ##x)
+#endif
 
 /* spin the cpu for a period of (short) time */
 void spin(uint32_t usecs);
