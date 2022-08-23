@@ -680,8 +680,6 @@ status_t sm_intc_fiq_enter(void)
     u_int irq = GICCREG_READ(0, GICC_IAR) & 0x3ff;
 #endif
 
-    ASSERT(cpu < 8);
-
     LTRACEF("cpu %d, irq %i\n", cpu, irq);
 
     if (irq >= 1020) {
