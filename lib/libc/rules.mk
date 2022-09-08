@@ -18,6 +18,8 @@ MODULE_DEFINES += \
 
 $(info KERNEL_LIBC_RANDSEED = $(KERNEL_LIBC_RANDSEED))
 
+GLOBAL_INCLUDES += $(LOCAL_DIR)/include_common
+
 MODULE_SRCS += \
 	$(LOCAL_DIR)/atoi.c \
 	$(LOCAL_DIR)/bsearch.c \
