@@ -22,6 +22,7 @@
  */
 
 #include <errno.h>
+#include <lk/compiler.h>
 
 /* completely un-threadsafe implementation of errno */
 /* TODO: pull from kernel TLS or some other thread local storage */
@@ -32,3 +33,5 @@ int *__geterrno(void)
     return &_errno;
 }
 
+extern int *__errno_location(void) __WEAK_ALIAS("__geterrno");
+extern int *___errno_location(void) __WEAK_ALIAS("__geterrno");
