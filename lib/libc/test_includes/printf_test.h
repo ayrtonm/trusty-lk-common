@@ -31,6 +31,9 @@ typedef unsigned int uint;
 typedef int (*_printf_engine_output_func)(const char *str, size_t len, void *state);
 
 int _printf_engine(_printf_engine_output_func out, void *state, const char *fmt, va_list ap);
+
+/* For unit tests we need this forward declaration because we use a different set of headers*/
+int vsnprintf_filtered(char *str, size_t len, const char *fmt, va_list ap);
 #define __NO_INLINE
 #define __FALLTHROUGH
 

@@ -35,7 +35,6 @@ HOST_SRCS := \
         $(GTEST_DIR)/src/gtest_main.cc \
         $(LOCAL_DIR)/../include/printf.h \
         $(LOCAL_DIR)/../printf.c \
-        $(LOCAL_DIR)/../test_common/test_functions.c \
 
 HOST_INCLUDE_DIRS := \
         $(GTEST_DIR)/include \

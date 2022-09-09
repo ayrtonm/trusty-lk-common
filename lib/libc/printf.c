@@ -72,6 +72,18 @@ int snprintf(char *str, size_t len, const char *fmt, ...)
     return err;
 }
 
+int snprintf_filtered(char *str, size_t len, const char *fmt, ...)
+{
+    int err;
+
+    va_list ap;
+    va_start(ap, fmt);
+    err = vsnprintf_filtered(str, len, fmt, ap);
+    va_end(ap);
+
+    return err;
+}
+
 int vsprintf(char *str, const char *fmt, va_list ap)
 {
     return vsnprintf(str, INT_MAX, fmt, ap);
@@ -110,6 +122,23 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap)
     args.pos = 0;
 
     wlen = _printf_unfiltered_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
+    if (args.pos >= len)
+        str[len-1] = '\0';
+    else
+        str[wlen] = '\0';
+    return wlen;
+}
+
+int vsnprintf_filtered(char *str, size_t len, const char *fmt, va_list ap)
+{
+    struct _output_args args;
+    int wlen;
+
+    args.outstr = str;
+    args.len = len;
+    args.pos = 0;
+
+    wlen = _printf_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
     if (args.pos >= len)
         str[len-1] = '\0';
     else
