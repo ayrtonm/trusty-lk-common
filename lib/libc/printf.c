@@ -28,14 +28,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/*
-* We are overriding the RELEASE_BUILD behavior on this file to always disable filtering on test builds.
-*/
-#if TEST_BUILD
-#undef RELEASE_BUILD
-#define RELEASE_BUILD 0
-#endif
-
 #ifdef UTEST_BUILD
 #include "test_includes/printf_test.h"
 #endif
@@ -467,6 +459,44 @@ __NO_INLINE static char *double_to_hexstring(char *buf, size_t len, double d, ui
 
 #endif // FLOAT_PRINTF
 
+/* Currently only doing a 1 char lookahead for the modifiers*/
+static void parse_extra_modifiers(const char **format_string, int *flags, bool use_filter_modifiers)
+{
+    char currChar;
+
+    /* Because this function is called only when we are parsing
+     * and actual format specifier, this value will either point
+     * to the printable string or at most to the NULL terminator.
+     */
+    currChar = **format_string;
+    if (currChar == 0) {
+        return;
+    }
+    /* This is a not filtered call, we should not "eat" the extra x.*/
+    if (!use_filter_modifiers) {
+        return;
+    }
+    switch(currChar) {
+        case 'x':
+            /* Found an x modifier; we really want to print this value.*/
+            *flags &= ~FILTERED_ON_RELEASE;
+            /* We are consuming this character, advance format string.
+             * Advancing is safe because the current character is a
+             * printable one, so worst case we will advance to the end
+             * of the string and the original algorithm was prepared to
+             * handling advancing to end of string before starting to
+             * parse.
+             */
+            (*format_string)++;
+            break;
+        default:
+            /* We didn't understood the next character,
+             * normal parsing code will take care of it
+             */
+            break;
+    }
+}
+
 static int _printf_engine_internal(_printf_engine_output_func out, void *state, const char *fmt, va_list ap, bool filtered)
 {
     int err = 0;
@@ -582,6 +612,7 @@ next_format:
                     (flags & PTRDIFFFLAG) ? va_arg(ap, ptrdiff_t) :
                     va_arg(ap, int));
                 flags |= SIGNEDFLAG;
+                parse_extra_modifiers(&fmt, &flags, filtered);
                 s = longlong_to_string(num_buffer, n, sizeof(num_buffer), flags, &signchar);
                 goto _output_string;
             case 'u':
@@ -593,6 +624,7 @@ next_format:
                     (flags & INTMAXFLAG) ? va_arg(ap, uintmax_t) :
                     (flags & PTRDIFFFLAG) ? (uintptr_t)va_arg(ap, ptrdiff_t) :
                     va_arg(ap, unsigned int));
+                parse_extra_modifiers(&fmt, &flags, filtered);
                 s = longlong_to_string(num_buffer, n, sizeof(num_buffer), flags, &signchar);
                 goto _output_string;
             case 'p':
@@ -611,6 +643,7 @@ hex:
                     (flags & INTMAXFLAG) ? va_arg(ap, uintmax_t) :
                     (flags & PTRDIFFFLAG) ? (uintptr_t)va_arg(ap, ptrdiff_t) :
                     va_arg(ap, unsigned int);
+                parse_extra_modifiers(&fmt, &flags, filtered);
                 s = longlong_to_hexstring(num_buffer, n, sizeof(num_buffer), flags);
                 if (flags & ALTFLAG) {
                     OUTPUT_CHAR('0');
