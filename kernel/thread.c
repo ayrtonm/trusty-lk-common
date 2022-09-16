@@ -100,10 +100,8 @@ static void idle_thread_routine(void) __NO_RETURN;
 static enum handler_return thread_timer_callback(struct timer *t,
                                                  lk_time_ns_t now, void *arg);
 
-#if PLATFORM_HAS_DYNAMIC_TIMER
 /* preemption timer */
 static timer_t preempt_timer[SMP_MAX_CPUS];
-#endif
 
 #define US2NS(us) ((us) * 1000ULL)
 #define MS2NS(ms) (US2NS(ms) * 1000ULL)
@@ -340,12 +338,10 @@ status_t thread_set_real_time(thread_t *t)
     DEBUG_ASSERT(t->magic == THREAD_MAGIC);
 
     THREAD_LOCK(state);
-#if PLATFORM_HAS_DYNAMIC_TIMER
     if (t == get_current_thread()) {
         /* if we're currently running, cancel the preemption timer. */
         timer_cancel(&preempt_timer[arch_curr_cpu_num()]);
     }
-#endif
     t->flags |= THREAD_FLAG_REAL_TIME;
     THREAD_UNLOCK(state);
 
@@ -920,7 +916,6 @@ void thread_resched(void)
 
     KEVLOG_THREAD_SWITCH(oldthread, newthread);
 
-#if PLATFORM_HAS_DYNAMIC_TIMER
     if (thread_is_real_time_or_idle(newthread)) {
         thread_cond_mp_reschedule(newthread, __func__);
         if (!thread_is_real_time_or_idle(oldthread)) {
@@ -942,7 +937,6 @@ void thread_resched(void)
         timer_set_periodic_ns(&preempt_timer[cpu], MS2NS(10),
                               thread_timer_callback, NULL);
     }
-#endif
 
     /* set some optional target debug leds */
     target_set_debug_led(0, !thread_is_idle(newthread));
@@ -1105,11 +1099,6 @@ void thread_unblock(thread_t *t, bool resched)
     thread_mp_reschedule(get_current_thread(), t);
     if (resched)
         thread_resched();
-}
-
-enum handler_return thread_timer_tick(void)
-{
-    return thread_timer_callback(NULL, 0, NULL);
 }
 
 static enum handler_return thread_timer_callback(struct timer *t, lk_time_ns_t now,
@@ -1275,11 +1264,9 @@ static void thread_reaper_init(void)
  */
 void thread_init(void)
 {
-#if PLATFORM_HAS_DYNAMIC_TIMER
     for (uint i = 0; i < SMP_MAX_CPUS; i++) {
         timer_initialize(&preempt_timer[i]);
     }
-#endif
     thread_reaper_init();
 }
 

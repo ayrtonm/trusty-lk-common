@@ -329,14 +329,6 @@ static enum handler_return timer_tick(void *arg, lk_time_ns_t now)
 
     /* we're done manipulating the timer queue */
     spin_unlock(&timer_lock);
-#else
-    /* release the timer lock before calling the tick handler */
-    spin_unlock(&timer_lock);
-
-    /* let the scheduler have a shot to do quantum expiration, etc */
-    /* in case of dynamic timer, the scheduler will set up a periodic timer */
-    if (thread_timer_tick() == INT_RESCHEDULE)
-        ret = INT_RESCHEDULE;
 #endif
 
     return ret;
