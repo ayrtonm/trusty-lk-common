@@ -24,8 +24,8 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <libc/string.h>
-#include <libc/ctype.h>
+#include <string.h>
+#include <ctype.h>
 
 void *memscan(void *addr, int c, size_t size)
 {
