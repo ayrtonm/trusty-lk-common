@@ -12,6 +12,8 @@
 # MODULE_CPPFLAGS : CPPFLAGS local to this module
 # MODULE_ASMFLAGS : ASMFLAGS local to this module
 # MODULE_RUSTFLAGS : RUSTFLAGS local to this module
+# MODULE_RUSTDOCFLAGS : RUSTDOCFLAGS local to this module
+# MODULE_RUSTDOC_OBJECT : marker file to use as target when building Rust docs
 # MODULE_INCLUDES : include directories local to this module
 # MODULE_SRCDEPS : extra dependencies that all of this module's files depend on
 # MODULE_EXTRA_ARCHIVES : extra .a files that should be linked with the module
@@ -20,6 +22,7 @@
 # MODULE_DISABLE_CFI : disable CFI for this module
 # MODULE_DISABLE_STACK_PROTECTOR : disable stack protector for this module
 # MODULE_DISABLE_SCS : disable shadow call stack for this module
+# MODULE_SKIP_DOCS : skip generating docs for this module
 
 # MODULE_ARM_OVERRIDE_SRCS : list of source files, local path that should be force compiled with ARM (if applicable)
 
@@ -71,6 +74,7 @@ MODULE_DEFINES += MODULE_CFLAGS=\"$(call clean_defines,$(MODULE_CFLAGS))\"
 MODULE_DEFINES += MODULE_CPPFLAGS=\"$(call clean_defines,$(MODULE_CPPFLAGS))\"
 MODULE_DEFINES += MODULE_ASMFLAGS=\"$(call clean_defines,$(MODULE_ASMFLAGS))\"
 MODULE_DEFINES += MODULE_RUSTFLAGS=\"$(call clean_defines,$(MODULE_RUSTFLAGS))\"
+MODULE_DEFINES += MODULE_RUSTDOCFLAGS=\"$(call clean_defines,$(MODULE_RUSTDOCFLAGS))\"
 MODULE_DEFINES += MODULE_RUST_ENV=\"$(call clean_defines,$(MODULE_RUST_ENV))\"
 MODULE_DEFINES += MODULE_LDFLAGS=\"$(call clean_defines,$(MODULE_LDFLAGS))\"
 MODULE_DEFINES += MODULE_OPTFLAGS=\"$(call clean_defines,$(MODULE_OPTFLAGS))\"
@@ -165,10 +169,20 @@ $(addsuffix .d,$(MODULE_RSOBJS)):
 MODULE_RSSRC := $(filter %.rs,$(MODULE_SRCS))
 $(MODULE_RSOBJS): $(MODULE_RSSRC) $(MODULE_SRCDEPS) $(MODULE_EXTRA_OBJECTS) $(MODULE_LIBRARIES) $(addsuffix .d,$(MODULE_RSOBJS))
 	@$(MKDIR)
-	@echo generating documentation for $<
-	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTDOC) --deny warnings -L $(TRUSTY_LIBRARY_BUILDDIR) $(ARCH_RUSTFLAGS) $(MODULE_RUSTDOCFLAGS) --out-dir $(MODULE_RUSTDOC_OUT_DIR) $<
 	@echo compiling rust module $<
 	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTC) $(GLOBAL_RUSTFLAGS) $(ARCH_RUSTFLAGS) $(MODULE_RUSTFLAGS) $< --emit "dep-info=$@.d" -o $@
+
+ifneq ($(call TOBOOL,$(MODULE_SKIP_DOCS)),true)
+
+$(MODULE_RUSTDOC_OBJECT): $(MODULE_RSSRC) | $(MODULE_RSOBJS)
+	@$(MKDIR)
+	@echo "generating documentation for $(MODULE_CRATE_NAME)"
+	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTDOC) $(GLOBAL_RUSTFLAGS) $(ARCH_RUSTFLAGS) $(MODULE_RUSTDOCFLAGS) -L $(TRUSTY_LIBRARY_BUILDDIR) --out-dir $(MODULE_RUSTDOC_OUT_DIR) $<
+	touch $@
+
+EXTRA_BUILDDEPS += $(MODULE_RUSTDOC_OBJECT)
+
+endif
 
 -include $(addsuffix .d,$(MODULE_RSOBJS))
 
@@ -211,6 +225,7 @@ MODULE_CFLAGS :=
 MODULE_CPPFLAGS :=
 MODULE_ASMFLAGS :=
 MODULE_RUSTFLAGS :=
+MODULE_RUSTDOCFLAGS :=
 MODULE_SRCDEPS :=
 MODULE_INCLUDES :=
 MODULE_EXTRA_ARCHIVES :=
@@ -226,3 +241,5 @@ MODULE_DISABLE_CFI :=
 MODULE_DISABLE_STACK_PROTECTOR :=
 MODULE_DISABLE_SCS :=
 MODULE_RSOBJS :=
+MODULE_RUSTDOC_OBJECT :=
+MODULE_SKIP_DOCS :=
