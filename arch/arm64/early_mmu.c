@@ -56,7 +56,7 @@ static void free_page_table(void* vaddr,
  */
 #define paddr_to_kvaddr early_mmu_paddr_to_kvaddr
 #define EARLY_MMU
-#include "mmu.c"
+#include "mmu.inc"
 #undef paddr_to_kvaddr
 
 void arch_mmu_map_early(vaddr_t vaddr,
