@@ -131,6 +131,25 @@ static inline void HEAP_TRIM(void) { dlmalloc_trim(0); }
 #error need to select valid heap implementation or provide wrapper
 #endif
 
+static inline int HEAP_POSIX_MEMALIGN(void **res, size_t align, size_t size)
+{
+    if (align < sizeof(void *)) {
+        LTRACEF("Invalid alignment requested\n");
+        return ERR_INVALID_ARGS;
+    }
+    if (res == NULL) {
+        LTRACEF("Invalid result pointer\n");
+        return ERR_INVALID_ARGS;
+    }
+    void *mem = HEAP_MEMALIGN(align, size);
+    if (mem == NULL) {
+        LTRACEF("Insufficient memory\n");
+        return ERR_NO_MEMORY;
+    }
+    *res = mem;
+    return NO_ERROR;
+}
+
 void heap_init(void)
 {
     HEAP_INIT();
@@ -159,6 +178,18 @@ void *memalign(size_t boundary, size_t size)
     if (heap_trace)
         printf("caller %p memalign %zu, %zu -> %p\n", __GET_CALLER(), boundary, size, ptr);
     return ptr;
+}
+
+int posix_memalign(void **res, size_t align, size_t size)
+{
+    LTRACEF("res %p, align %zu, size %zd\n", res, align, size);
+
+    int rc = HEAP_POSIX_MEMALIGN(res, align, size);
+    if (heap_trace) {
+        printf("caller %p posix_memalign %p, %zu, %zu -> %d\n", __GET_CALLER(),
+               res, align, size, rc);
+    }
+    return rc;
 }
 
 void *calloc(size_t count, size_t size)

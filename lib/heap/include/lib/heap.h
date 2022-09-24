@@ -31,6 +31,7 @@ __BEGIN_CDECLS;
 /* standard heap definitions */
 void *malloc(size_t size) __MALLOC __WARN_UNUSED_RESULT;
 void *memalign(size_t boundary, size_t size) __MALLOC __WARN_UNUSED_RESULT;
+int posix_memalign(void** res, size_t align, size_t size);
 void *calloc(size_t count, size_t size) __WARN_UNUSED_RESULT;
 void *realloc(void *ptr, size_t size) __WARN_UNUSED_RESULT;
 void free(void *ptr);
