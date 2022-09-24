@@ -68,7 +68,10 @@ int printf(const char *fmt, ...) __PRINTFLIKE(1, 2);
 int vprintf(const char *fmt, va_list ap);
 
 int fprintf(FILE *fp, const char *fmt, ...) __PRINTFLIKE(2, 3);
-int vfprintf(FILE *fp, const char *fmt, va_list ap);
+int vfprintf_worker(FILE *fp, const char *fmt, va_list ap, int filtered_on_release);
+static inline int vfprintf(FILE *fp, const char *fmt, va_list ap) {
+    return vfprintf_worker(fp, fmt, ap, 1);
+}
 
 int sprintf(char *str, const char *fmt, ...) __PRINTFLIKE(2, 3);
 int snprintf(char *str, size_t len, const char *fmt, ...) __PRINTFLIKE(3, 4);

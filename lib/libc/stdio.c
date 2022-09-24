@@ -108,7 +108,7 @@ static int _fprintf_output_func(const char *str, size_t len, void *state)
     return io_write(fp->io, str, len);
 }
 
-int vfprintf(FILE *fp, const char *fmt, va_list ap)
+int vfprintf_worker(FILE *fp, const char *fmt, va_list ap, int filtered_on_release)
 {
     io_lock(fp->io);
     int result = _printf_engine(&_fprintf_output_func, (void *)fp, fmt, ap);
