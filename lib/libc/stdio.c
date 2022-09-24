@@ -128,8 +128,11 @@ int fprintf(FILE *fp, const char *fmt, ...)
     return err;
 }
 
-int _printf(const char *fmt, ...)
+int printf(const char *fmt, ...)
 {
+#if DISABLE_DEBUG_OUTPUT
+    return 0;
+#else
     va_list ap;
     int err;
 
@@ -138,9 +141,14 @@ int _printf(const char *fmt, ...)
     va_end(ap);
 
     return err;
+#endif
 }
 
-int _vprintf(const char *fmt, va_list ap)
+int vprintf(const char *fmt, va_list ap)
 {
+#if DISABLE_DEBUG_OUTPUT
+    return 0;
+#else
     return vfprintf(stdout, fmt, ap);
+#endif
 }
