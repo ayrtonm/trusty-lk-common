@@ -174,6 +174,10 @@ $(MODULE_RSOBJS): $(MODULE_RSSRC) $(MODULE_SRCDEPS) $(MODULE_EXTRA_OBJECTS) $(MO
 
 ifneq ($(call TOBOOL,$(MODULE_SKIP_DOCS)),true)
 
+# Pass rustdoc the same flags as rustc such that the generated documentation
+# matches the code that gets compiled and run. Note: $(GLOBAL_RUSTFLAGS) adds
+# $(TRUSTY_HOST_LIBRARY_BUILDDIR) to the library search path. This is necessary
+# to pick up dependencies that are proc macros and thus built in the host dir.
 $(MODULE_RUSTDOC_OBJECT): $(MODULE_RSSRC) | $(MODULE_RSOBJS)
 	@$(MKDIR)
 	@echo "generating documentation for $(MODULE_CRATE_NAME)"
