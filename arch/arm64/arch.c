@@ -33,6 +33,7 @@
 #include <lk/main.h>
 #include <platform.h>
 #include <trace.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -72,7 +73,7 @@ void arch_init(void)
 #if WITH_SMP
     arch_mp_init_percpu();
 
-    LTRACEF("midr_el1 0x%llx\n", ARM64_READ_SYSREG(midr_el1));
+    LTRACEF("midr_el1 0x%" PRIx64 "\n", ARM64_READ_SYSREG(midr_el1));
 
     secondaries_to_init = SMP_MAX_CPUS - 1; /* TODO: get count from somewhere else, or add cpus as they boot */
 

@@ -27,6 +27,7 @@
 #include <bits.h>
 #include <trace.h>
 #include <kernel/thread.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -48,7 +49,7 @@ static bool vmm_asid_current(struct arch_aspace *aspace, uint64_t ref,
         return false;
     }
     if (((aspace->asid ^ ref) & ~asid_mask)) {
-        LTRACEF("old asid for aspace %p, 0x%llx, ref 0x%llx, mask 0x%llx\n",
+        LTRACEF("old asid for aspace %p, 0x%" PRIxASID ", ref 0x%" PRIx64 ", mask 0x%" PRIx64 "\n",
                 aspace, aspace->asid, ref, asid_mask);
         return false;
     }
@@ -83,7 +84,7 @@ static void vmm_asid_allocate(struct arch_aspace *aspace, uint cpu,
     }
 
     aspace->asid = ++last_asid;
-    LTRACEF("cpu %d: aspace %p, new asid 0x%llx\n", cpu, aspace, aspace->asid);
+    LTRACEF("cpu %d: aspace %p, new asid 0x%" PRIxASID "\n", cpu, aspace, aspace->asid);
     if (!(last_asid & asid_mask)) {
         old_asid_active = true;
     }
@@ -97,7 +98,7 @@ static void vmm_asid_allocate(struct arch_aspace *aspace, uint cpu,
                 if (!((active_aspace[i]->asid ^ last_asid) & asid_mask)) {
                     /* Skip asid in use by other CPUs */
                     aspace->asid = ++last_asid;
-                    LTRACEF("cpu %d: conflict asid 0x%llx at cpu %d, new asid 0x%llx\n",
+                    LTRACEF("cpu %d: conflict asid 0x%" PRIxASID " at cpu %d, new asid 0x%" PRIxASID "\n",
                             cpu, active_aspace[i]->asid, i, aspace->asid);
                     i = 0;
                     continue;
@@ -134,7 +135,7 @@ bool vmm_asid_activate(struct arch_aspace *aspace, uint asid_bits)
     DEBUG_ASSERT(aspace); /* NULL aspace is always current */
 
     active_asid_version[cpu] = aspace->asid & ~asid_mask;
-    LTRACEF("cpu %d: aspace %p, asid 0x%llx\n", cpu, aspace, aspace->asid);
+    LTRACEF("cpu %d: aspace %p, asid 0x%" PRIxASID "\n", cpu, aspace, aspace->asid);
 
     return true;
 }

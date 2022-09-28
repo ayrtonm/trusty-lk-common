@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 
+#define PRIxASID PRIx64
 typedef uint64_t asid_t;
 struct arch_aspace;
 

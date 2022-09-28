@@ -28,6 +28,7 @@
 #include <platform/interrupts.h>
 #include <platform/timer.h>
 #include <trace.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -173,13 +174,13 @@ static uint64_t read_cntp_cval(void)
     uint64_t cval;
 
     cval = READ_TIMER_REG64(TIMER_REG_CVAL);
-    LTRACEF_LEVEL(3, "cntp cval: 0x%016llx, %llu\n", cval, cval);
+    LTRACEF_LEVEL(3, "cntp cval: 0x%016" PRIx64 ", %" PRIu64 "\n", cval, cval);
     return cval;
 }
 
 static void write_cntp_cval(uint64_t cntp_cval)
 {
-    LTRACEF_LEVEL(3, "cntp_cval: 0x%016llx, %llu\n", cntp_cval, cntp_cval);
+    LTRACEF_LEVEL(3, "cntp_cval: 0x%016" PRIx64 ", %" PRIu64 "\n", cntp_cval, cntp_cval);
     WRITE_TIMER_REG64(TIMER_REG_CVAL, cntp_cval);
 }
 
@@ -194,7 +195,7 @@ static uint64_t read_cntpct(void)
     uint64_t cntpct;
 
     cntpct = READ_TIMER_REG64(TIMER_REG_CT);
-    LTRACEF_LEVEL(3, "cntpct: 0x%016llx, %llu\n", cntpct, cntpct);
+    LTRACEF_LEVEL(3, "cntpct: 0x%016" PRIx64 ", %" PRIu64 "\n", cntpct, cntpct);
     return cntpct;
 }
 
@@ -258,9 +259,9 @@ static void test_time_conversion_check_result(uint64_t a, uint64_t b, uint64_t l
         uint64_t diff = is32 ? abs_int32((int32_t)a_minus_b) :
                                abs_int64((int64_t)a_minus_b);
         if (diff <= limit)
-            LTRACEF("ROUNDED by %llu (up to %llu allowed)\n", diff, limit);
+            LTRACEF("ROUNDED by %" PRIu64 " (up to %" PRIu64 " allowed)\n", diff, limit);
         else
-            TRACEF("FAIL, off by %llu\n", diff);
+            TRACEF("FAIL, off by %" PRIu64 "\n", diff);
     }
 }
 
@@ -274,7 +275,7 @@ static void test_lk_time_ns_to_cntpct(uint32_t cntfrq, lk_time_ns_t lk_time_ns)
                                (lk_time_ns_rem * cntfrq + (s / 2)) / s;
 
     test_time_conversion_check_result(cntpct, expected_cntpct, 1, false);
-    LTRACEF_LEVEL(2, "lk_time_ns_to_cntpct(%llu): got %llu, expect %llu\n",
+    LTRACEF_LEVEL(2, "lk_time_ns_to_cntpct(%llu): got %" PRIu64 ", expect %" PRIu64 "\n",
                   lk_time_ns, cntpct, expected_cntpct);
 }
 
@@ -292,7 +293,7 @@ static void test_cntpct_to_lk_time(uint32_t cntfrq, lk_time_t expected_lk_time, 
 
     test_time_conversion_check_result(lk_time, expected_lk_time,
                                       (1000ULL + cntfrq - 1) / cntfrq, true);
-    LTRACEF_LEVEL(2, "cntpct_to_lk_time(%llu): got %u, expect %u\n", cntpct, lk_time, expected_lk_time);
+    LTRACEF_LEVEL(2, "cntpct_to_lk_time(%" PRIu64 "): got %u, expect %u\n", cntpct, lk_time, expected_lk_time);
 }
 
 static void test_cntpct_to_lk_time_ns(uint32_t cntfrq, uint64_t expected_s)
@@ -304,7 +305,7 @@ static void test_cntpct_to_lk_time_ns(uint32_t cntfrq, uint64_t expected_s)
     test_time_conversion_check_result(
             lk_time_ns, expected_lk_time_ns,
             (1000ULL * 1000 * 1000 + cntfrq - 1) / cntfrq, false);
-    LTRACEF_LEVEL(2, "cntpct_to_lk_time_ns(%llu): got %llu, expect %llu\n",
+    LTRACEF_LEVEL(2, "cntpct_to_lk_time_ns(%" PRIu64 "): got %llu, expect %llu\n",
                   cntpct, lk_time_ns, expected_lk_time_ns);
 }
 

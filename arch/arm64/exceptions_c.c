@@ -32,6 +32,7 @@
 #include <arch/safecopy.h>
 #include <kernel/vm.h>
 #include <lib/trusty/trusty_app.h>
+#include <inttypes.h>
 
 #define SHUTDOWN_ON_FATAL 1
 
@@ -177,7 +178,7 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
     if (info1valid) {
         printmemattrs("phys: ", paddr1, bytesonfirstpage, flags1);
     } else {
-        printf("phys: <unmapped>/0x%llx):\n", bytesonfirstpage);
+        printf("phys: <unmapped>/0x%" PRIx64 "):\n", bytesonfirstpage);
     }
     if (bytesonfirstpage < sizeof(data)) {
         if (info2valid) {
@@ -186,13 +187,13 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
                    sizeof(data) - bytesonfirstpage,
                    flags2);
         } else {
-            printf("              and (phys: <unmapped>/0x%llx):\n",
+            printf("              and (phys: <unmapped>/0x%" PRIx64 "):\n",
                     sizeof(data) - bytesonfirstpage);
         }
     }
 
     for (size_t offset = 0; offset < sizeof(data); offset += 16) {
-        printf("0x%016llx: ", wrap_add(addr, offset));
+        printf("0x%016" PRIx64 ": ", wrap_add(addr, offset));
 
         for (int i = 0; i < 16; i++) {
             if (i == 8) {
@@ -240,16 +241,16 @@ static void dump_iframe(const struct arm64_iframe_long *iframe)
     printf("stack   %p-%p\n", thread->stack, thread->stack + thread->stack_size);
     printf("iframe  %p:\n", iframe);
 #if TEST_BUILD
-    printf("x0  0x%16llx x1  0x%16llx x2  0x%16llx x3  0x%16llx\n", iframe->r[0], iframe->r[1], iframe->r[2], iframe->r[3]);
-    printf("x4  0x%16llx x5  0x%16llx x6  0x%16llx x7  0x%16llx\n", iframe->r[4], iframe->r[5], iframe->r[6], iframe->r[7]);
-    printf("x8  0x%16llx x9  0x%16llx x10 0x%16llx x11 0x%16llx\n", iframe->r[8], iframe->r[9], iframe->r[10], iframe->r[11]);
-    printf("x12 0x%16llx x13 0x%16llx x14 0x%16llx x15 0x%16llx\n", iframe->r[12], iframe->r[13], iframe->r[14], iframe->r[15]);
-    printf("x16 0x%16llx x17 0x%16llx x18 0x%16llx x19 0x%16llx\n", iframe->r[16], iframe->r[17], iframe->r[18], iframe->r[19]);
-    printf("x20 0x%16llx x21 0x%16llx x22 0x%16llx x23 0x%16llx\n", iframe->r[20], iframe->r[21], iframe->r[22], iframe->r[23]);
-    printf("x24 0x%16llx x25 0x%16llx x26 0x%16llx x27 0x%16llx\n", iframe->r[24], iframe->r[25], iframe->r[26], iframe->r[27]);
-    printf("x28 0x%16llx fp  0x%16llx lr  0x%16llx sp  0x%16llx\n", iframe->r[28], iframe->fp, iframe->lr, iframe->sp);
-    printf("elr 0x%16llx\n", iframe->elr);
-    printf("spsr 0x%16llx\n", iframe->spsr);
+    printf("x0  0x%16" PRIx64 " x1  0x%16" PRIx64 " x2  0x%16" PRIx64 " x3  0x%16" PRIx64 "\n", iframe->r[0], iframe->r[1], iframe->r[2], iframe->r[3]);
+    printf("x4  0x%16" PRIx64 " x5  0x%16" PRIx64 " x6  0x%16" PRIx64 " x7  0x%16" PRIx64 "\n", iframe->r[4], iframe->r[5], iframe->r[6], iframe->r[7]);
+    printf("x8  0x%16" PRIx64 " x9  0x%16" PRIx64 " x10 0x%16" PRIx64 " x11 0x%16" PRIx64 "\n", iframe->r[8], iframe->r[9], iframe->r[10], iframe->r[11]);
+    printf("x12 0x%16" PRIx64 " x13 0x%16" PRIx64 " x14 0x%16" PRIx64 " x15 0x%16" PRIx64 "\n", iframe->r[12], iframe->r[13], iframe->r[14], iframe->r[15]);
+    printf("x16 0x%16" PRIx64 " x17 0x%16" PRIx64 " x18 0x%16" PRIx64 " x19 0x%16" PRIx64 "\n", iframe->r[16], iframe->r[17], iframe->r[18], iframe->r[19]);
+    printf("x20 0x%16" PRIx64 " x21 0x%16" PRIx64 " x22 0x%16" PRIx64 " x23 0x%16" PRIx64 "\n", iframe->r[20], iframe->r[21], iframe->r[22], iframe->r[23]);
+    printf("x24 0x%16" PRIx64 " x25 0x%16" PRIx64 " x26 0x%16" PRIx64 " x27 0x%16" PRIx64 "\n", iframe->r[24], iframe->r[25], iframe->r[26], iframe->r[27]);
+    printf("x28 0x%16" PRIx64 " fp  0x%16" PRIx64 " lr  0x%16" PRIx64 " sp  0x%16" PRIx64 "\n", iframe->r[28], iframe->fp, iframe->lr, iframe->sp);
+    printf("elr 0x%16" PRIx64 "\n", iframe->elr);
+    printf("spsr 0x%16" PRIx64 "\n", iframe->spsr);
 #endif
 }
 
@@ -375,7 +376,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             if (check_fault_handler_table(iframe)) {
                 return;
             }
-            printf("instruction abort: PC at 0x%llx(0x%lx)\n", iframe->elr,
+            printf("instruction abort: PC at 0x%" PRIx64 "(0x%lx)\n", iframe->elr,
                    display_pc);
             print_fault_code(BITS(iss, 5, 0));
             break;
@@ -397,11 +398,11 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
                 printf("reading from ");
             }
             if (dfsc == 0b010000 && BIT(iss, 10)) {
-                printf("unknown address (FAR 0x%llx not valid)", far);
+                printf("unknown address (FAR 0x%" PRIx64 " not valid)", far);
             } else {
-                printf("0x%llx", far);
+                printf("0x%" PRIx64, far);
             }
-            printf(", PC at 0x%llx(0x%lx)\n", iframe->elr, display_pc);
+            printf(", PC at 0x%" PRIx64 "(0x%lx)\n", iframe->elr, display_pc);
             if (BIT(iss, 24)) { /* ISV bit */
                 printf("Access size: %d bits, sign extension: %s, register: %s%lu, %s acquire release semantics\n",
                         8 << BITS_SHIFT(iss,23,22),
@@ -414,12 +415,12 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             break;
         }
         case 0b111100: {
-            printf("BRK #0x%04lx instruction: PC at 0x%llx(0x%lx)\n",
+            printf("BRK #0x%04lx instruction: PC at 0x%" PRIx64 "(0x%lx)\n",
                    BITS_SHIFT(iss, 15, 0), iframe->elr, display_pc);
             break;
         }
         default:
-            printf("unhandled synchronous exception: PC at 0x%llx(0x%lx)\n",
+            printf("unhandled synchronous exception: PC at 0x%" PRIx64 "(0x%lx)\n",
                    iframe->elr, display_pc);
     }
 

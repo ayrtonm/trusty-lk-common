@@ -34,6 +34,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 #define TRACE_CONTEXT_SWITCH 0
@@ -167,7 +168,7 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
         descriptor_type = pte & MMU_PTE_DESCRIPTOR_MASK;
         pte_addr = pte & MMU_PTE_OUTPUT_ADDR_MASK;
 
-        LTRACEF("va 0x%lx, index %d, index_shift %d, rem 0x%lx, pte 0x%llx\n",
+        LTRACEF("va 0x%lx, index %d, index_shift %d, rem 0x%lx, pte 0x%" PRIx64 "\n",
                 vaddr, index, index_shift, vaddr_rem, pte);
 
         if (descriptor_type == MMU_PTE_DESCRIPTOR_INVALID)
@@ -310,7 +311,7 @@ static pte_t *arm64_mmu_get_page_table(vaddr_t index, uint page_size_shift, pte_
 
             pte = paddr | MMU_PTE_L012_DESCRIPTOR_TABLE;
             page_table[index] = pte;
-            LTRACEF("pte %p[0x%lx] = 0x%llx\n", page_table, index, pte);
+            LTRACEF("pte %p[0x%lx] = 0x%" PRIx64 "\n", page_table, index, pte);
             return vaddr;
 
         case MMU_PTE_L012_DESCRIPTOR_TABLE:
@@ -335,7 +336,7 @@ static bool page_table_is_clear(pte_t *page_table, uint page_size_shift)
     for (i = 0; i < count; i++) {
         pte = page_table[i];
         if (pte != MMU_PTE_DESCRIPTOR_INVALID) {
-            LTRACEF("page_table at %p still in use, index %d is 0x%llx\n",
+            LTRACEF("page_table at %p still in use, index %d is 0x%" PRIx64 "\n",
                     page_table, i, pte);
             return false;
         }
@@ -426,7 +427,7 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
     vaddr_t block_mask;
     pte_t pte;
 
-    LTRACEF("vaddr 0x%lx, vaddr_rel 0x%lx, paddr 0x%lx, size 0x%lx, attrs 0x%llx, index shift %d, page_size_shift %d, page_table %p\n",
+    LTRACEF("vaddr 0x%lx, vaddr_rel 0x%lx, paddr 0x%lx, size 0x%lx, attrs 0x%" PRIx64 ", index shift %d, page_size_shift %d, page_table %p\n",
             vaddr, vaddr_rel, paddr, size, attrs,
             index_shift, page_size_shift, page_table);
 
@@ -458,7 +459,7 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
         } else {
             pte = page_table[index];
             if (pte) {
-                TRACEF("page table entry already in use, index 0x%lx, 0x%llx\n",
+                TRACEF("page table entry already in use, index 0x%lx, 0x%" PRIx64 "\n",
                        index, pte);
                 goto err;
             }
@@ -469,7 +470,7 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
             else
                 pte |= MMU_PTE_L3_DESCRIPTOR_PAGE;
 
-            LTRACEF("pte %p[0x%lx] = 0x%llx\n", page_table, index, pte);
+            LTRACEF("pte %p[0x%lx] = 0x%" PRIx64 "\n", page_table, index, pte);
             page_table[index] = pte;
         }
         size -= chunk_size;
@@ -501,7 +502,7 @@ int arm64_mmu_map(vaddr_t vaddr, paddr_t paddr, size_t size, pte_t attrs,
     vaddr_t vaddr_rel = vaddr - vaddr_base;
     vaddr_t vaddr_rel_max = 1UL << top_size_shift;
 
-    LTRACEF("vaddr 0x%lx, paddr 0x%lx, size 0x%lx, attrs 0x%llx, asid 0x%x\n",
+    LTRACEF("vaddr 0x%lx, paddr 0x%lx, size 0x%lx, attrs 0x%" PRIx64 ", asid 0x%x\n",
             vaddr, paddr, size, attrs, asid);
 
     if (vaddr_rel > vaddr_rel_max - size || size > vaddr_rel_max) {
@@ -552,7 +553,7 @@ static void arm64_tlbflush_if_asid_changed(arch_aspace_t *aspace, asid_t asid)
 {
     THREAD_LOCK(state);
     if (asid != arch_mmu_asid(aspace)) {
-        TRACEF("asid changed for aspace %p while mapping or unmapping memory, 0x%llx -> 0x%llx, flush all tlbs\n",
+        TRACEF("asid changed for aspace %p while mapping or unmapping memory, 0x%" PRIxASID " -> 0x%" PRIxASID ", flush all tlbs\n",
                aspace, asid, aspace->asid);
         ARM64_TLBI_NOADDR(vmalle1is);
         DSB;
@@ -716,12 +717,12 @@ void arch_mmu_context_switch(arch_aspace_t *aspace)
         ARM64_WRITE_SYSREG(ttbr0_el1, ttbr);
 
         if (TRACE_CONTEXT_SWITCH)
-            TRACEF("ttbr 0x%llx, tcr 0x%llx\n", ttbr, tcr);
+            TRACEF("ttbr 0x%" PRIx64 ", tcr 0x%" PRIx64 "\n", ttbr, tcr);
     } else {
         tcr = MMU_TCR_FLAGS_KERNEL;
 
         if (TRACE_CONTEXT_SWITCH)
-            TRACEF("tcr 0x%llx\n", tcr);
+            TRACEF("tcr 0x%" PRIx64 "\n", tcr);
     }
 
     ARM64_WRITE_SYSREG(tcr_el1, tcr); /* TODO: only needed when switching between kernel and user threads */
