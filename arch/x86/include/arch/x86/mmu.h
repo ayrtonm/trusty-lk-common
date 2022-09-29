@@ -45,7 +45,11 @@
 /* default flags for 2MB/4MB/1GB page directory entries */
 #define X86_KERNEL_PD_LP_FLAGS (X86_MMU_PG_G | X86_MMU_PG_PS | X86_MMU_PG_RW | X86_MMU_PG_P)
 
+#if !defined(PAGE_SIZE)
 #define PAGE_SIZE       4096
+#elif PAGE_SIZE != 4096
+#error "Found multiple incompatible definitions for PAGE_SIZE"
+#endif
 #define PAGE_DIV_SHIFT      12
 
 #if defined(PAE_MODE_ENABLED) || ARCH_X86_64

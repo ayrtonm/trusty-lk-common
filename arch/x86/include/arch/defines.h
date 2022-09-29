@@ -23,7 +23,11 @@
  */
 #pragma once
 
+#if !defined(PAGE_SIZE)
 #define PAGE_SIZE 4096
+#elif PAGE_SIZE != 4096
+#error "Found multiple incompatible definitions for PAGE_SIZE"
+#endif
 #define PAGE_SIZE_SHIFT 12
 
 #define CACHE_LINE 32
