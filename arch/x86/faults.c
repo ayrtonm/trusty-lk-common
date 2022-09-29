@@ -27,6 +27,7 @@
 #include <arch/fpu.h>
 #include <kernel/thread.h>
 #include <platform.h>
+#include <inttypes.h>
 
 /* exceptions */
 #define INT_DIVIDE_0        0x00
@@ -53,17 +54,17 @@ static void dump_fault_frame(x86_iframe_t *frame)
     dprintf(CRITICAL, " DS:     %04x  ES:     %04x  FS:   %04x  GS:     %04x\n",
             frame->ds, frame->es, frame->fs, frame->gs);
 #elif ARCH_X86_64
-    dprintf(CRITICAL, " CS:              %4llx RIP: %16llx EFL: %16llx CR2: %16llx\n",
+    dprintf(CRITICAL, " CS:              %4" PRIx64 " RIP: %16" PRIx64 " EFL: %16" PRIx64 " CR2: %16" PRIx64 "\n",
             frame->cs, frame->ip, frame->flags, x86_get_cr2());
-    dprintf(CRITICAL, " RAX: %16llx RBX: %16llx RCX: %16llx RDX: %16llx\n",
+    dprintf(CRITICAL, " RAX: %16" PRIx64 " RBX: %16" PRIx64 " RCX: %16" PRIx64 " RDX: %16" PRIx64 "\n",
             frame->ax, frame->bx, frame->cx, frame->dx);
-    dprintf(CRITICAL, " RSI: %16llx RDI: %16llx RBP: %16llx RSP: %16llx\n",
+    dprintf(CRITICAL, " RSI: %16" PRIx64 " RDI: %16" PRIx64 " RBP: %16" PRIx64 " RSP: %16" PRIx64 "\n",
             frame->si, frame->di, frame->bp, frame->user_sp);
-    dprintf(CRITICAL, "  R8: %16llx  R9: %16llx R10: %16llx R11: %16llx\n",
+    dprintf(CRITICAL, "  R8: %16" PRIx64 "  R9: %16" PRIx64 " R10: %16" PRIx64 " R11: %16" PRIx64 "\n",
             frame->r8, frame->r9, frame->r10, frame->r11);
-    dprintf(CRITICAL, " R12: %16llx R13: %16llx R14: %16llx R15: %16llx\n",
+    dprintf(CRITICAL, " R12: %16" PRIx64 " R13: %16" PRIx64 " R14: %16" PRIx64 " R15: %16" PRIx64 "\n",
             frame->r12, frame->r13, frame->r14, frame->r15);
-    dprintf(CRITICAL, "errc: %16llx\n",
+    dprintf(CRITICAL, "errc: %16" PRIx64 "\n",
             frame->err_code);
 #endif
 

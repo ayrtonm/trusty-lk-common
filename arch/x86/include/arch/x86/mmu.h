@@ -133,9 +133,15 @@ struct map_range {
 #if defined(PAE_MODE_ENABLED) || ARCH_X86_64
 typedef uint64_t map_addr_t;
 typedef uint64_t arch_flags_t;
+#define PRIxMAP_ADDR PRIx64
+#define PRIxARCH_FLAGS PRIx64
+#define PRIxMAP_RANGE_PADDR PRIx64
 #else
 typedef uint32_t map_addr_t;
 typedef uint32_t arch_flags_t;
+#define PRIxMAP_ADDR PRIx32
+#define PRIxARCH_FLAGS PRIx32
+#define PRIxMAP_RANGE_PADDR PRIxPADDR
 #endif
 
 #if ARCH_X86_64

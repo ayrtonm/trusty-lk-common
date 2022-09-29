@@ -36,6 +36,7 @@
 #include <err.h>
 #include <arch/arch_ops.h>
 #include <kernel/vm.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -200,7 +201,7 @@ static inline uint64_t get_pfn_from_pde(uint64_t pde)
 
     pfn = (pde & X86_2MB_PAGE_FRAME);
 
-    LTRACEF_LEVEL(2, "pde 0x%llx, pfn 0x%llx\n", pde, pfn);
+    LTRACEF_LEVEL(2, "pde 0x%" PRIx64 ", pfn 0x%" PRIx64 "\n", pde, pfn);
 
     return pfn;
 }
@@ -270,13 +271,13 @@ status_t x86_mmu_get_mapping(map_addr_t pml4, vaddr_t vaddr, uint32_t *ret_level
     *last_valid_entry = pml4;
     *mmu_flags = 0;
 
-    LTRACEF_LEVEL(2, "pml4 0x%llx\n", pml4);
+    LTRACEF_LEVEL(2, "pml4 0x%" PRIx64 "\n", pml4);
 
     pml4e = get_pml4_entry_from_pml4_table(vaddr, pml4);
     if ((pml4e & X86_MMU_PG_P) == 0) {
         return ERR_NOT_FOUND;
     }
-    LTRACEF_LEVEL(2, "pml4e 0x%llx\n", pml4e);
+    LTRACEF_LEVEL(2, "pml4e 0x%" PRIx64 "\n", pml4e);
 
     pdpe = get_pdp_entry_from_pdp_table(vaddr, pml4e);
     if ((pdpe & X86_MMU_PG_P) == 0) {
@@ -284,7 +285,7 @@ status_t x86_mmu_get_mapping(map_addr_t pml4, vaddr_t vaddr, uint32_t *ret_level
         *last_valid_entry = pml4e;
         return ERR_NOT_FOUND;
     }
-    LTRACEF_LEVEL(2, "pdpe 0x%llx\n", pdpe);
+    LTRACEF_LEVEL(2, "pdpe 0x%" PRIx64 "\n", pdpe);
 
     pde = get_pd_entry_from_pd_table(vaddr, pdpe);
     if ((pde & X86_MMU_PG_P) == 0) {
@@ -292,7 +293,7 @@ status_t x86_mmu_get_mapping(map_addr_t pml4, vaddr_t vaddr, uint32_t *ret_level
         *last_valid_entry = pdpe;
         return ERR_NOT_FOUND;
     }
-    LTRACEF_LEVEL(2, "pde 0x%llx\n", pde);
+    LTRACEF_LEVEL(2, "pde 0x%" PRIx64 "\n", pde);
 
     /* 2 MB pages */
     if (pde & X86_MMU_PG_PS) {
@@ -445,7 +446,7 @@ status_t x86_mmu_add_mapping(map_addr_t pml4, map_addr_t paddr,
     map_addr_t *m = NULL;
     status_t ret = NO_ERROR;
 
-    LTRACEF("pml4 0x%llx paddr 0x%llx vaddr 0x%lx flags 0x%llx\n", pml4, paddr, vaddr, mmu_flags);
+    LTRACEF("pml4 0x%" PRIxMAP_ADDR " paddr 0x%" PRIxMAP_ADDR " vaddr 0x%lx flags 0x%" PRIxARCH_FLAGS "\n", pml4, paddr, vaddr, mmu_flags);
 
     DEBUG_ASSERT(pml4);
     if ((!x86_mmu_check_vaddr(vaddr)) || (!x86_mmu_check_paddr(paddr)) )
@@ -669,8 +670,8 @@ status_t x86_mmu_map_range(map_addr_t pml4, struct map_range *range, arch_flags_
     status_t map_status;
     uint32_t no_of_pages, index;
 
-    LTRACEF("pml4 0x%llx, range v 0x%lx p 0x%llx size %u flags 0x%llx\n", pml4,
-        range->start_vaddr, range->start_paddr, range->size, flags);
+    LTRACEF("pml4 0x%" PRIxMAP_ADDR ", range v 0x%" PRIxVADDR " p 0x%" PRIxMAP_RANGE_PADDR " size %u flags 0x%" PRIxARCH_FLAGS "\n",
+        pml4, range->start_vaddr, range->start_paddr, range->size, flags);
 
     DEBUG_ASSERT(pml4);
     if (!range)
@@ -722,7 +723,7 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
         *paddr = (paddr_t)(last_valid_entry);
     }
 
-    LTRACEF("paddr 0x%llx\n", last_valid_entry);
+    LTRACEF("paddr 0x%" PRIxMAP_ADDR "\n", last_valid_entry);
 
     /* converting x86 arch specific flags to arch mmu flags */
     if (flags)
