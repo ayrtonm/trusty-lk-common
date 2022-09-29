@@ -36,6 +36,7 @@
 #include <arch/ops.h>
 #include <platform/gic.h>
 #include <trace.h>
+#include <inttypes.h>
 #if WITH_LIB_SM
 #include <lib/sm.h>
 #include <lib/sm/sm_err.h>
@@ -536,7 +537,7 @@ enum handler_return __platform_irq(struct iframe *frame)
 
     uint cpu = arch_curr_cpu_num();
 
-    LTRACEF_LEVEL(2, "iar 0x%x cpu %u currthread %p vector %d pc 0x%lx\n", iar, cpu,
+    LTRACEF_LEVEL(2, "iar 0x%x cpu %u currthread %p vector %d pc 0x%" PRIxPTR "\n", iar, cpu,
                   get_current_thread(), vector, (uintptr_t)IFRAME_PC(frame));
 
     // deliver the interrupt

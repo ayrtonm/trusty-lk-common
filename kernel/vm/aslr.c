@@ -38,7 +38,7 @@ vaddr_t aslr_randomize_kernel_base(vaddr_t kernel_base) {
 
     struct mmu_initial_mapping* second_mapping = &mmu_initial_mappings[1];
     if (second_mapping->size) {
-        LTRACEF("non-kernel mapping phys:0x%" PRIxPTR " virt:0x%" PRIxPTR
+        LTRACEF("non-kernel mapping phys:0x%" PRIxPADDR " virt:0x%" PRIxVADDR
                 " size:%zu\n",
                 second_mapping->phys, second_mapping->virt,
                 second_mapping->size);

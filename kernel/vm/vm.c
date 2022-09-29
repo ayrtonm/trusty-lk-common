@@ -32,6 +32,7 @@
 #include <arch/mmu.h>
 #include <kernel/thread.h>
 #include <debug.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -45,7 +46,7 @@ extern char __data_start;
  * allocate the physical pages and throw them away */
 static void mark_pages_in_use(vaddr_t va, size_t len)
 {
-    LTRACEF("va 0x%lx, len 0x%zx\n", va, len);
+    LTRACEF("va 0x%" PRIxVADDR ", len 0x%zx\n", va, len);
 
     struct list_node list;
     list_initialize(&list);
@@ -54,7 +55,7 @@ static void mark_pages_in_use(vaddr_t va, size_t len)
     len = page_align(len + (va & (PAGE_SIZE - 1)));
     va = round_down(va, PAGE_SIZE);
 
-    LTRACEF("aligned va 0x%lx, len 0x%zx\n", va, len);
+    LTRACEF("aligned va 0x%" PRIxVADDR ", len 0x%zx\n", va, len);
 
     for (size_t offset = 0; offset < len; offset += PAGE_SIZE) {
         uint flags;
@@ -66,10 +67,10 @@ static void mark_pages_in_use(vaddr_t va, size_t len)
 
             /* allocate the range, throw the results away */
             if (pmm_alloc_range(pa, 1, &list) != 1) {
-              panic("Could not alloc pa 0x%lx\n", pa);
+              panic("Could not alloc pa 0x%" PRIxPADDR "\n", pa);
             }
         } else {
-            panic("Could not find pa for va 0x%lx\n", va);
+            panic("Could not find pa for va 0x%" PRIxVADDR "\n", va);
         }
     }
 }
@@ -93,7 +94,7 @@ static void vm_init_preheap(uint level)
 
     /* mark the physical pages used by the boot time allocator */
     if (alloc_end != alloc_start) {
-        LTRACEF("marking boot alloc used from 0x%lx to 0x%lx\n", alloc_start, alloc_end);
+        LTRACEF("marking boot alloc used from 0x%" PRIxPTR " to 0x%" PRIxPTR "\n", alloc_start, alloc_end);
 
         /*
          * if _end is not page aligned, the kernel and the boot time allocator
@@ -279,7 +280,7 @@ usage:
         status_t err = arch_mmu_query(&aspace->arch_aspace, argv[2].u, &pa, &flags);
         printf("arch_mmu_query returns %d\n", err);
         if (err >= 0) {
-            printf("\tpa 0x%lx, flags 0x%x\n", pa, flags);
+            printf("\tpa 0x%" PRIxPADDR ", flags 0x%x\n", pa, flags);
         }
     } else if (!strcmp(argv[1].str, "map")) {
         if (argc < 6) goto notenoughargs;

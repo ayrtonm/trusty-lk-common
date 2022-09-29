@@ -27,6 +27,7 @@
 #include <trace.h>
 #include <kernel/thread.h>
 #include <arch/arm.h>
+#include <inttypes.h>
 
 struct context_switch_frame {
     vaddr_t tpidrurw;
@@ -111,6 +112,6 @@ void arch_dump_thread(thread_t *t)
 {
     if (t->state != THREAD_RUNNING) {
         dprintf(INFO, "\tarch: ");
-        dprintf(INFO, "sp 0x%lx\n", t->arch.sp);
+        dprintf(INFO, "sp 0x%" PRIxVADDR "\n", t->arch.sp);
     }
 }

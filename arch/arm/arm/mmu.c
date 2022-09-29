@@ -35,6 +35,7 @@
 #include <arch/arm/mmu.h>
 #include <kernel/vm.h>
 #include <lk/init.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 #define TRACE_CONTEXT_SWITCH 0
@@ -159,7 +160,7 @@ static void arm_mmu_map_section(arch_aspace_t *aspace, addr_t paddr, addr_t vadd
 {
     int index;
 
-    LTRACEF("aspace %p tt %p pa 0x%lx va 0x%lx flags 0x%x\n", aspace, aspace->tt_virt, paddr, vaddr, flags);
+    LTRACEF("aspace %p tt %p pa 0x%" PRIxPADDR " va 0x%" PRIxVADDR " flags 0x%x\n", aspace, aspace->tt_virt, paddr, vaddr, flags);
 
     DEBUG_ASSERT(aspace);
     DEBUG_ASSERT(aspace->tt_virt);
@@ -290,7 +291,7 @@ void arch_mmu_context_switch(arch_aspace_t *aspace)
 
 status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, uint *flags)
 {
-    LTRACEF("aspace %p, vaddr 0x%lx\n", aspace, vaddr);
+    LTRACEF("aspace %p, vaddr 0x%" PRIxVADDR "\n", aspace, vaddr);
 
     DEBUG_ASSERT(aspace);
     DEBUG_ASSERT(aspace->tt_virt);
@@ -459,7 +460,7 @@ static status_t get_l2_table(arch_aspace_t *aspace, uint32_t l1_index, paddr_t *
 
     *ppa = pa + (PAGE_SIZE / L1E_PER_PAGE) * (l1_index & (L1E_PER_PAGE-1));
 
-    LTRACEF("allocated pagetable at %p, pa 0x%lx, pa 0x%lx\n", l2_va, pa, *ppa);
+    LTRACEF("allocated pagetable at %p, pa 0x%" PRIxPADDR ", pa 0x%" PRIxPADDR "\n", l2_va, pa, *ppa);
     return NO_ERROR;
 }
 
@@ -480,14 +481,14 @@ static void put_l2_table(arch_aspace_t *aspace, uint32_t l1_index, paddr_t l2_pa
     /* we can free this l2 table */
     vm_page_t *page = paddr_to_vm_page(l2_pa);
     if (!page)
-        panic("bad page table paddr 0x%lx\n", l2_pa);
+        panic("bad page table paddr 0x%" PRIxPADDR "\n", l2_pa);
 
     /* verify that it is in our page list */
     DEBUG_ASSERT(list_in_list(&page->node));
 
     list_delete(&page->node);
 
-    LTRACEF("freeing pagetable at 0x%lx\n", l2_pa);
+    LTRACEF("freeing pagetable at 0x%" PRIxPADDR "\n", l2_pa);
     pmm_free_page(page);
 }
 
@@ -514,7 +515,7 @@ vaddr_t arch_mmu_pick_spot(arch_aspace_t *aspace,
                            vaddr_t end,  uint next_region_flags,
                            vaddr_t alignment, size_t size, uint flags)
 {
-    LTRACEF("base 0x%lx, end 0x%lx, align %ld, size %zd, flags 0x%x\n",
+    LTRACEF("base 0x%" PRIxVADDR ", end 0x%" PRIxVADDR ", align %" PRIdVADDR ", size %zd, flags 0x%x\n",
             base, end, alignment, size, flags);
 
     vaddr_t spot;
@@ -542,7 +543,7 @@ vaddr_t arch_mmu_pick_spot(arch_aspace_t *aspace,
 
 int arch_mmu_map(arch_aspace_t *aspace, addr_t vaddr, paddr_t paddr, size_t count, uint flags)
 {
-    LTRACEF("vaddr 0x%lx paddr 0x%lx count %zu flags 0x%x\n", vaddr, paddr, count, flags);
+    LTRACEF("vaddr 0x%" PRIxVADDR " paddr 0x%" PRIxPADDR " count %zu flags 0x%x\n", vaddr, paddr, count, flags);
 
     DEBUG_ASSERT(aspace);
     DEBUG_ASSERT(aspace->tt_virt);
@@ -673,7 +674,7 @@ int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, size_t count)
     if (!IS_PAGE_ALIGNED(vaddr))
         return ERR_INVALID_ARGS;
 
-    LTRACEF("vaddr 0x%lx count %zu\n", vaddr, count);
+    LTRACEF("vaddr 0x%" PRIxVADDR " count %zu\n", vaddr, count);
 
     int unmapped = 0;
     while (count > 0) {
@@ -764,7 +765,7 @@ int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, size_t count)
 
 status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, uint flags)
 {
-    LTRACEF("aspace %p, base 0x%lx, size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
+    LTRACEF("aspace %p, base 0x%" PRIxVADDR ", size 0x%zx, flags 0x%x\n", aspace, base, size, flags);
 
     DEBUG_ASSERT(aspace);
 
@@ -807,7 +808,7 @@ status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, 
         memset(aspace->tt_virt, 0, tt_sz);
     }
 
-    LTRACEF("tt_phys 0x%lx tt_virt %p\n", aspace->tt_phys, aspace->tt_virt);
+    LTRACEF("tt_phys 0x%" PRIxPADDR " tt_virt %p\n", aspace->tt_phys, aspace->tt_virt);
 
     return NO_ERROR;
 }

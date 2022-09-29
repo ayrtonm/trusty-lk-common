@@ -34,6 +34,7 @@
 #include <platform/debug.h>
 #include <kernel/spinlock.h>
 #include <kernel/thread.h>
+#include <inttypes.h>
 
 void spin(uint32_t usecs)
 {
@@ -133,7 +134,7 @@ void hexdump(const void *ptr, size_t len)
         size_t s = round_up(MIN(len - count, 16), 4);
         size_t i;
 
-        printf("0x%08lx: ", address);
+        printf("0x%08" PRIxADDR ": ", address);
         for (i = 0; i < s / 4; i++) {
             u.buf[i] = ((const uint32_t *)address)[i];
             printf("%08x ", u.buf[i]);

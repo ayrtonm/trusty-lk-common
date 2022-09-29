@@ -25,6 +25,7 @@
 #define __ARCH_USERCOPY_H
 
 #include <sys/types.h>
+#include <inttypes.h>
 
 #if IS_64BIT && USER_32BIT
 typedef uint32_t user_addr_t;
@@ -37,7 +38,7 @@ typedef uint32_t user_size_t;
 typedef vaddr_t user_addr_t;
 typedef size_t user_size_t;
 
-#define PRIxPTR_USER "lx"
+#define PRIxPTR_USER PRIxVADDR
 #define PRIxSIZE_USER "zx"
 #define PRIuSIZE_USER "zu"
 #endif

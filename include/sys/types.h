@@ -43,10 +43,16 @@ typedef int status_t;
 
 typedef uintptr_t addr_t;
 #define ADDR_MAX UINTPTR_MAX
+#define PRIxADDR PRIxPTR
+#define PRIdADDR PRIdPTR
 typedef uintptr_t vaddr_t;
 #define VADDR_MAX UINTPTR_MAX
+#define PRIxVADDR PRIxPTR
+#define PRIdVADDR PRIdPTR
 typedef uintptr_t paddr_t;
 #define PADDR_MAX UINTPTR_MAX
+#define PRIxPADDR PRIxPTR
+#define PRIdPADDR PRIdPTR
 
 typedef int kobj_id;
 

@@ -27,6 +27,7 @@
 #include <platform.h>
 #include <string.h>
 #include <lib/trusty/trusty_app.h>
+#include <inttypes.h>
 
 struct fault_handler_table_entry {
     uint32_t pc;
@@ -100,7 +101,7 @@ static void dump_thread_info(void)
 
     struct trusty_app *app = current_trusty_app();
     if (app) {
-        dprintf(CRITICAL, "load bias %lx\n", app->load_bias);
+        dprintf(CRITICAL, "load bias %" PRIxVADDR "\n", app->load_bias);
     }
 
 }

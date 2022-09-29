@@ -28,6 +28,7 @@
 #include <lib/rand/rand.h>
 #include <string.h>
 #include <trace.h>
+#include <inttypes.h>
 
 #include "vm_priv.h"
 
@@ -260,7 +261,7 @@ static status_t add_region_to_aspace(vmm_aspace_t* aspace, vmm_region_t* r) {
     DEBUG_ASSERT(aspace);
     DEBUG_ASSERT(r);
 
-    LTRACEF("aspace %p base 0x%lx size 0x%zx r %p base 0x%lx size 0x%zx flags 0x%x\n",
+    LTRACEF("aspace %p base 0x%" PRIxVADDR " size 0x%zx r %p base 0x%" PRIxVADDR " size 0x%zx flags 0x%x\n",
             aspace, aspace->base, aspace->size, r, r->base, r->obj_slice.size,
             r->flags);
 
@@ -278,7 +279,7 @@ static status_t add_region_to_aspace(vmm_aspace_t* aspace, vmm_region_t* r) {
     LTRACEF("couldn't find spot\n");
     vmm_region_t *r_coll  = bst_search_type(&aspace->regions, r,
                                             vmm_region_cmp, vmm_region_t, node);
-    LTRACEF("colliding r %p base 0x%lx size 0x%zx flags 0x%x\n",
+    LTRACEF("colliding r %p base 0x%" PRIxVADDR " size 0x%zx flags 0x%x\n",
             r_coll, r_coll->base, r_coll->obj_slice.size, r_coll->flags);
     return ERR_NO_MEMORY;
 }
@@ -692,7 +693,7 @@ static status_t alloc_region(vmm_aspace_t* aspace,
         }
 
         vaddr = alloc_spot(aspace, size, align_pow2, arch_mmu_flags);
-        LTRACEF("alloc_spot returns 0x%lx\n", vaddr);
+        LTRACEF("alloc_spot returns 0x%" PRIxVADDR "\n", vaddr);
 
         if (vaddr == (vaddr_t)-1) {
             LTRACEF("failed to find spot\n");
@@ -761,7 +762,7 @@ status_t vmm_reserve_space(vmm_aspace_t* aspace,
                            vaddr_t vaddr) {
     status_t ret;
 
-    LTRACEF("aspace %p name '%s' size 0x%zx vaddr 0x%lx\n", aspace, name, size,
+    LTRACEF("aspace %p name '%s' size 0x%zx vaddr 0x%" PRIxVADDR "\n", aspace, name, size,
             vaddr);
 
     DEBUG_ASSERT(aspace);
@@ -910,7 +911,7 @@ status_t vmm_alloc_physical_etc(vmm_aspace_t* aspace,
     uint i;
     size_t page_size;
 
-    LTRACEF("aspace %p name '%s' size 0x%zx ptr %p paddr 0x%lx... vmm_flags 0x%x "
+    LTRACEF("aspace %p name '%s' size 0x%zx ptr %p paddr 0x%" PRIxPADDR "... vmm_flags 0x%x "
             "arch_mmu_flags 0x%x\n",
             aspace, name, size, ptr ? *ptr : 0, paddr[0], vmm_flags,
             arch_mmu_flags);
@@ -1306,7 +1307,7 @@ void vmm_set_active_aspace(vmm_aspace_t* aspace) {
 static void dump_region(const vmm_region_t* r) {
     DEBUG_ASSERT(r);
 
-    printf("\tregion %p: name '%s' range 0x%lx - 0x%lx size 0x%zx flags 0x%x "
+    printf("\tregion %p: name '%s' range 0x%" PRIxVADDR " - 0x%" PRIxVADDR " size 0x%zx flags 0x%x "
            "mmu_flags 0x%x\n",
            r, r->name, r->base, r->base + (r->obj_slice.size - 1),
            r->obj_slice.size, r->flags, r->arch_mmu_flags);
@@ -1315,7 +1316,7 @@ static void dump_region(const vmm_region_t* r) {
 static void dump_aspace(const vmm_aspace_t* a) {
     DEBUG_ASSERT(a);
 
-    printf("aspace %p: name '%s' range 0x%lx - 0x%lx size 0x%zx flags 0x%x\n",
+    printf("aspace %p: name '%s' range 0x%" PRIxVADDR " - 0x%" PRIxVADDR " size 0x%zx flags 0x%x\n",
            a, a->name, a->base, a->base + (a->size - 1), a->size, a->flags);
 
     printf("regions:\n");

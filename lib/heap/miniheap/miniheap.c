@@ -34,6 +34,7 @@
 #include <lib/miniheap.h>
 #include <lib/heap.h>
 #include <lib/page_alloc.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -84,7 +85,7 @@ static ssize_t heap_grow(size_t len);
 
 static void dump_free_chunk(struct free_heap_chunk *chunk)
 {
-    dprintf(INFO, "\t\tbase %p, end 0x%lx, len 0x%zx\n", chunk, (vaddr_t)chunk + chunk->len, chunk->len);
+    dprintf(INFO, "\t\tbase %p, end 0x%" PRIxVADDR ", len 0x%zx\n", chunk, (vaddr_t)chunk + chunk->len, chunk->len);
 }
 
 void miniheap_dump(void)
@@ -402,12 +403,12 @@ void miniheap_trim(void)
         DEBUG_ASSERT(end_page <= end);
         DEBUG_ASSERT(start_page >= start);
 
-        LTRACEF("start page 0x%lx, end page 0x%lx\n", start_page, end_page);
+        LTRACEF("start page 0x%" PRIxPTR ", end page 0x%" PRIxPTR "\n", start_page, end_page);
 
 retry:
         // see if the free block encompasses at least one page
         if (unlikely(end_page > start_page)) {
-            LTRACEF("could trim: start 0x%lx, end 0x%lx\n", start_page, end_page);
+            LTRACEF("could trim: start 0x%" PRIxPTR ", end 0x%" PRIxPTR "\n", start_page, end_page);
 
             // cases where the start of the block is already page aligned
             if (start_page == start) {
@@ -462,7 +463,7 @@ retry:
 
 free_chunk:
             // return it to the allocator
-            LTRACEF("returning %p size 0x%lx to the page allocator\n", (void *)start_page, end_page - start_page);
+            LTRACEF("returning %p size 0x%" PRIxPTR " to the page allocator\n", (void *)start_page, end_page - start_page);
             page_free((void *)start_page, (end_page - start_page) / PAGE_SIZE);
 
             // tweak accounting

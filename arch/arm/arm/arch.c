@@ -41,6 +41,7 @@
 #include <target.h>
 #include <kernel/thread.h>
 #include <kernel/vm.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -345,7 +346,7 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
     /* add the low bits of the virtual address back */
     entry_pa |= ((addr_t)entry & 0xfff);
 
-    LTRACEF("entry pa 0x%lx\n", entry_pa);
+    LTRACEF("entry pa 0x%" PRIxPADDR "\n", entry_pa);
 
     /* figure out the mapping for the chain load routine */
     if (arm_vtop((addr_t)&arm_chain_load, &loader_pa) < 0) {
@@ -357,7 +358,7 @@ void arch_chain_load(void *entry, ulong arg0, ulong arg1, ulong arg2, ulong arg3
 
     paddr_t loader_pa_section = round_down(loader_pa, SECTION_SIZE);
 
-    LTRACEF("loader address %p, phys 0x%lx, surrounding large page 0x%lx\n",
+    LTRACEF("loader address %p, phys 0x%" PRIxPADDR ", surrounding large page 0x%" PRIxPADDR "\n",
             &arm_chain_load, loader_pa, loader_pa_section);
 
     /* using large pages, map around the target location */

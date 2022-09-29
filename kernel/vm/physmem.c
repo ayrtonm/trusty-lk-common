@@ -25,6 +25,7 @@
 #include <kernel/vm.h>
 #include <kernel/physmem.h>
 #include <trace.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -124,7 +125,7 @@ static int phys_mem_obj_get_page(struct vmm_obj* obj,
                          size_t* paddr_size) {
     struct phys_mem_obj* phys_obj = phys_mem_obj_from_vmm_obj(obj);
 
-    LTRACEF("offset %zd phys_obj paddr 0x%lx\n", offset, phys_obj->paddr);
+    LTRACEF("offset %zd phys_obj paddr 0x%" PRIxPADDR "\n", offset, phys_obj->paddr);
 
     if (offset >= phys_obj->size) {
         TRACEF("offset %zd out of range size %zd\n", offset,
@@ -134,7 +135,7 @@ static int phys_mem_obj_get_page(struct vmm_obj* obj,
 
     *paddr = phys_obj->paddr + offset;
     *paddr_size = phys_obj->size - offset;
-    LTRACEF("offset %zd -> paddr 0x%lx, size %zu\n", offset,
+    LTRACEF("offset %zd -> paddr 0x%" PRIxPADDR ", size %zu\n", offset,
             *paddr, *paddr_size);
 
     return 0;

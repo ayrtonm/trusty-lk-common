@@ -33,6 +33,7 @@
 #include <lib/console.h>
 #include <kernel/mutex.h>
 #include <kernel/spinlock.h>
+#include <inttypes.h>
 
 #define LOCAL_TRACE 0
 
@@ -149,7 +150,7 @@ static void init_page_array(pmm_arena_t *arena, size_t page_count,
 
 status_t pmm_add_arena(pmm_arena_t *arena)
 {
-    LTRACEF("arena %p name '%s' base 0x%lx size 0x%zx\n", arena, arena->name, arena->base, arena->size);
+    LTRACEF("arena %p name '%s' base 0x%" PRIxPADDR " size 0x%zx\n", arena, arena->name, arena->base, arena->size);
 
     DEBUG_ASSERT(arena);
     DEBUG_ASSERT(IS_PAGE_ALIGNED(arena->base));
@@ -205,7 +206,7 @@ status_t pmm_add_arena_late(pmm_arena_t *arena)
     size_t pages_reserved;
     spin_lock_saved_state_t state;
 
-    LTRACEF("arena %p name '%s' base 0x%lx size 0x%zx\n",
+    LTRACEF("arena %p name '%s' base 0x%" PRIxPADDR " size 0x%zx\n",
             arena, arena->name, arena->base, arena->size);
 
     DEBUG_ASSERT(arena);
@@ -336,7 +337,7 @@ static size_t pmm_arena_find_free_run(pmm_arena_t *a, uint count,
     uint aligned_offset = (rounded_base - a->base) / PAGE_SIZE;
     uint start = aligned_offset;
     LTRACEF("starting search at aligned offset %u\n", start);
-    LTRACEF("arena base 0x%lx size %zu\n", a->base, a->size);
+    LTRACEF("arena base 0x%" PRIxPADDR " size %zu\n", a->base, a->size);
 
 retry:
     /*
@@ -484,7 +485,7 @@ status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
 
 size_t pmm_alloc_range(paddr_t address, uint count, struct list_node *list)
 {
-    LTRACEF("address 0x%lx, count %u\n", address, count);
+    LTRACEF("address 0x%" PRIxPADDR ", count %u\n", address, count);
 
     DEBUG_ASSERT(list);
 
@@ -652,14 +653,14 @@ static void dump_page(const vm_page_t *page)
 {
     DEBUG_ASSERT(page);
 
-    printf("page %p: address 0x%lx flags 0x%x\n", page, vm_page_to_paddr(page), page->flags);
+    printf("page %p: address 0x%" PRIxPADDR " flags 0x%x\n", page, vm_page_to_paddr(page), page->flags);
 }
 
 static void dump_arena(const pmm_arena_t *arena, bool dump_pages)
 {
     DEBUG_ASSERT(arena);
 
-    printf("arena %p: name '%s' base 0x%lx size 0x%zx priority %u flags 0x%x\n",
+    printf("arena %p: name '%s' base 0x%" PRIxPADDR " size 0x%zx priority %u flags 0x%x\n",
            arena, arena->name, arena->base, arena->size, arena->priority, arena->flags);
     printf("\tpage_array %p, free_count %zu\n",
            arena->page_array, arena->free_count);
@@ -681,14 +682,14 @@ static void dump_arena(const pmm_arena_t *arena, bool dump_pages)
             }
         } else {
             if (last != -1) {
-                printf("\t\t0x%lx - 0x%lx\n", arena->base + last * PAGE_SIZE, arena->base + i * PAGE_SIZE);
+                printf("\t\t0x%" PRIxPADDR " - 0x%" PRIxPADDR "\n", arena->base + last * PAGE_SIZE, arena->base + i * PAGE_SIZE);
             }
             last = -1;
         }
     }
 
     if (last != -1) {
-        printf("\t\t0x%lx - 0x%lx\n",  arena->base + last * PAGE_SIZE, arena->base + arena->size);
+        printf("\t\t0x%" PRIxPADDR " - 0x%" PRIxPADDR "\n",  arena->base + last * PAGE_SIZE, arena->base + arena->size);
     }
 }
 
@@ -733,7 +734,7 @@ usage:
 
         vm_page_t *p;
         list_for_every_entry(&list, p, vm_page_t, node) {
-            printf("\tpage %p, address 0x%lx\n", p, vm_page_to_paddr(p));
+            printf("\tpage %p, address 0x%" PRIxPADDR "\n", p, vm_page_to_paddr(p));
         }
 
         /* add the pages to the local allocated list */
@@ -754,7 +755,7 @@ usage:
 
         paddr_t pa;
         size_t ret = pmm_alloc_contiguous(argv[2].u, argv[3].u, &pa, &list);
-        printf("pmm_alloc_contiguous returns %zu, address 0x%lx\n", ret, pa);
+        printf("pmm_alloc_contiguous returns %zu, address 0x%" PRIxPADDR "\n", ret, pa);
         printf("address %% align = 0x%lx\n", pa % argv[3].u);
 
         /* add the pages to the local allocated list */
