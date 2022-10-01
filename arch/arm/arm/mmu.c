@@ -71,7 +71,7 @@ static uint32_t mmu_flags_to_l1_arch_flags(uint flags)
             break;
         default:
             /* invalid user-supplied flag */
-            DEBUG_ASSERT(1);
+            DEBUG_ASSERT(0);
             return ERR_INVALID_ARGS;
     }
 
@@ -123,7 +123,7 @@ static uint32_t mmu_flags_to_l2_arch_flags_small_page(uint flags)
             break;
         default:
             /* invalid user-supplied flag */
-            DEBUG_ASSERT(1);
+            DEBUG_ASSERT(0);
             return ERR_INVALID_ARGS;
     }
 

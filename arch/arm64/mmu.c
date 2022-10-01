@@ -83,7 +83,7 @@ static pte_t mmu_flags_to_pte_attr(uint flags)
             break;
         default:
             /* invalid user-supplied flag */
-            DEBUG_ASSERT(1);
+            DEBUG_ASSERT(0);
             return ERR_INVALID_ARGS;
     }
 
