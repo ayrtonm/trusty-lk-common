@@ -139,6 +139,9 @@ endif
 
 endif
 
+# Rebuild every module if the toolchain changes
+MODULE_SRCDEPS += $(TOOLCHAIN_CONFIG)
+
 # generate a per-module config.h file
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),false)
 MODULE_CONFIG := $(MODULE_BUILDDIR)/module_config.h

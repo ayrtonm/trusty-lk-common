@@ -64,6 +64,7 @@ BUILDDIR := $(BUILDROOT)/build-$(PROJECT)
 OUTBIN := $(BUILDDIR)/lk.bin
 OUTELF := $(BUILDDIR)/lk.elf
 CONFIGHEADER := $(BUILDDIR)/config.h
+TOOLCHAIN_CONFIG := $(BUILDDIR)/toolchain.config
 
 # Eliminate /usr/local/include and /usr/include to build kernel hermetically
 GLOBAL_KERNEL_COMPILEFLAGS += --sysroot=fake_sysroot
@@ -356,6 +357,16 @@ CPPFILT := $(CLANG_BINDIR)/llvm-cxxfilt
 SIZE := $(CLANG_BINDIR)/llvm-size
 NM := $(CLANG_BINDIR)/llvm-nm
 STRIP := $(CLANG_BINDIR)/llvm-strip
+
+# Save the toolchain paths in order to rebuild the world if they change. This is
+# needed to force a rebuild when changing compiler versions.
+TOOLCHAIN_DEFINES := CLANG_BINDIR=\"$(subst $(SPACE),_,$(CLANG_BINDIR))\"
+TOOLCHAIN_DEFINES += CLANG_TOOLS_BINDIR=\"$(subst $(SPACE),_,$(CLANG_TOOLS_BINDIR))\"
+TOOLCHAIN_DEFINES += RUST_BINDIR=\"$(subst $(SPACE),_,$(RUST_BINDIR))\"
+$(TOOLCHAIN_CONFIG): configheader
+	@$(call MAKECONFIGHEADER,$@,TOOLCHAIN_DEFINES)
+
+GENERATED += $(TOOLCHAIN_CONFIG)
 
 GLOBAL_HOST_RUSTFLAGS += -C linker="$(CLANG_BINDIR)/clang++" -C link-args="-B $(CLANG_BINDIR) -fuse-ld=lld"
 GLOBAL_SHARED_RUSTFLAGS += -C linker="$(LD)"
