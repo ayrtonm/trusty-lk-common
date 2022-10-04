@@ -23,4 +23,5 @@ CLANG_ARM64_TARGET_ABI ?= gnu
 ARCH_arm64_COMPILEFLAGS += -target aarch64-$(CLANG_ARM64_TARGET_SYS)-$(CLANG_ARM64_TARGET_ABI)
 
 # Set Rust target to match clang target
+ARCH_arm64_SUPPORTS_RUST := true
 ARCH_arm64_RUSTFLAGS := --target=$(LOCAL_DIR)/rust-target.json
