@@ -24,4 +24,4 @@ ARCH_arm64_COMPILEFLAGS += -target aarch64-$(CLANG_ARM64_TARGET_SYS)-$(CLANG_ARM
 
 # Set Rust target to match clang target
 ARCH_arm64_SUPPORTS_RUST := true
-ARCH_arm64_RUSTFLAGS := --target=$(LOCAL_DIR)/rust-target.json
+ARCH_arm64_RUSTFLAGS := --target=aarch64-unknown-trusty

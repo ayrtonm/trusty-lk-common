@@ -49,4 +49,4 @@ ARCH_arm_COMPILEFLAGS += -target arm-$(CLANG_ARM_TARGET_SYS)-$(CLANG_ARM_TARGET_
 
 # Set up custom Rust target to match clang target
 ARCH_arm_SUPPORTS_RUST := true
-ARCH_arm_RUSTFLAGS := --target=$(LOCAL_DIR)/rust-target.json
+ARCH_arm_RUSTFLAGS := --target=armv7-unknown-trusty
