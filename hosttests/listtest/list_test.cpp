@@ -63,13 +63,15 @@ static void CheckListArray(struct list_node *list, struct list_node *items[],
     EXPECT_EQ(i, count) << "List has fewer items than expected";
 }
 
+#define ArraySize(a) (sizeof(a) / sizeof((a)[0]))
+
 /**
  * CheckList - Helper macro to call CheckListArray.
  */
 #define CheckList(list, items...) { \
     SCOPED_TRACE("CheckList"); \
     struct list_node *itemarray[] = {items}; \
-    CheckListArray(list, itemarray, countof(itemarray)); \
+    CheckListArray(list, itemarray, ArraySize(itemarray)); \
 }
 
 /**

@@ -23,6 +23,8 @@
 #ifndef __COMPILER_H
 #define __COMPILER_H
 
+#include <stddef.h>
+
 #ifndef __ASSEMBLY__
 
 #if __GNUC__
@@ -155,8 +157,15 @@
 
 #endif
 
+#ifdef __cplusplus
+extern "C++" {
+template <typename T, size_t N>
+constexpr inline size_t countof(const T (&array)[N]) { return N; }
+}
+#else
 /* TODO: add type check */
 #define countof(a) (sizeof(a) / sizeof((a)[0]))
+#endif
 
 #ifndef __has_attribute
 #define __has_attribute(x) 0

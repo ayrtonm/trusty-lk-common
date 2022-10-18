@@ -297,10 +297,12 @@ static void bst_test_check_array(struct bst_root *root,
     EXPECT_EQ(bst_next(root, bst_node(nodes, index, count - 1, count)), right);
     EXPECT_EQ(bst_prev(root, right), bst_node(nodes, index, count - 1, count));}
 
+#define bst_countof(a) (sizeof(a) / sizeof((a))[0])
+
 #define bst_test_check(root, nodes, items...) do { \
     SCOPED_TRACE("bst_test_check"); \
     size_t index[] = {items}; \
-    bst_test_check_array(root, nodes, index, countof(index), NULL, NULL); \
+    bst_test_check_array(root, nodes, index, bst_countof(index), NULL, NULL); \
     if (HasFatalFailure()) return; \
 } while(0)
 
