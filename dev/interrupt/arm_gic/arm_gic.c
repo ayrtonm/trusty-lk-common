@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <debug.h>
 #include <dev/interrupt/arm_gic.h>
+#include <inttypes.h>
 #include <reg.h>
 #include <kernel/thread.h>
 #include <kernel/debug.h>
@@ -692,7 +693,7 @@ status_t sm_intc_fiq_enter(void)
         DSB;
 
         if (doorbell_enabled) {
-            LTRACEF("GICD_SGIR: %llx\n", val);
+            LTRACEF("GICD_SGIR: %" PRIx64 "\n", val);
             GICCREG_WRITE(0, icc_asgi1r_el1, val);
         }
 #else
