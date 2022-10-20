@@ -87,6 +87,12 @@ GLOBAL_SHARED_CPPFLAGS += -Wno-c99-designator
 #GLOBAL_CPPFLAGS += -Weffc++
 GLOBAL_SHARED_ASMFLAGS := -DASSEMBLY
 GLOBAL_LDFLAGS :=
+GLOBAL_SHARED_LDFLAGS :=
+GLOBAL_KERNEL_LDFLAGS :=
+
+# This function is referenced by the linker-generated exidx tables, but seems to
+# be being dropped before it is needed. Force it to be included in the link.
+GLOBAL_SHARED_LDFLAGS += --undefined=__aeabi_unwind_cpp_pr0
 
 GLOBAL_KERNEL_LDFLAGS += $(addprefix -L,$(LKINC))
 
