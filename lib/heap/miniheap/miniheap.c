@@ -124,7 +124,9 @@ static struct free_heap_chunk *heap_insert_free_chunk(struct free_heap_chunk *ch
     // walk through the list, finding the node to insert before
     list_for_every_entry(&theheap.free_list, next_chunk, struct free_heap_chunk, node) {
         if (chunk < next_chunk) {
+#if LK_DEBUGLEVEL > INFO
             DEBUG_ASSERT(chunk_end <= (vaddr_t)next_chunk);
+#endif
 
             list_add_before(&next_chunk->node, &chunk->node);
 
@@ -354,7 +356,9 @@ void miniheap_free(void *ptr)
     struct alloc_struct_begin *as = (struct alloc_struct_begin *)ptr;
     as--;
 
+#if LK_DEBUGLEVEL > 1
     DEBUG_ASSERT(as->magic == HEAP_MAGIC);
+#endif
 
 #if DEBUG_HEAP
     {

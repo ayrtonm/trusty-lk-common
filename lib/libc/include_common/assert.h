@@ -34,7 +34,7 @@
     do { if (unlikely(!(x))) { panic("DEBUG ASSERT FAILED at (%s:%d): %s\n", __FILE__, __LINE__, #x); } } while (0)
 #else
 #define DEBUG_ASSERT(x) \
-    do { } while(0)
+    do { (void)(x); } while(0)
 #endif
 
 #define assert(e) DEBUG_ASSERT(e)
