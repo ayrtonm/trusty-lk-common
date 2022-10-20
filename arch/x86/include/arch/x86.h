@@ -889,7 +889,7 @@ static inline void x86_write_gs_with_offset(uint64_t offset, uint64_t val)
         :"memory");
 }
 
-static inline void x86_allow_explicit_smap() {
+static inline void x86_allow_explicit_smap(void) {
     if (x86_get_cr4() & X86_CR4_SMAP) {
         __asm__ __volatile__(
                 "stac"
@@ -899,7 +899,7 @@ static inline void x86_allow_explicit_smap() {
     }
 }
 
-static inline void x86_disallow_explicit_smap() {
+static inline void x86_disallow_explicit_smap(void) {
     if (x86_get_cr4() & X86_CR4_SMAP) {
         __asm__ __volatile__(
                 "clac"
