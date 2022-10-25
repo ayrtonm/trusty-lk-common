@@ -25,6 +25,7 @@
 #include <arch/x86/mmu.h>
 #include <bits.h>
 #include <lk/init.h>
+#include <lk/macros.h>
 #include <debug.h>
 
 typedef void (*cache_func_type_t)(addr_t addr);
