@@ -28,6 +28,7 @@
 #include <printf.h>
 #include <stdio.h>
 #include <lib/backtrace/backtrace.h>
+#include <lib/io.h>
 #include <list.h>
 #include <arch/ops.h>
 #include <platform.h>
@@ -104,6 +105,7 @@ static ssize_t __panic_stdio_write(io_handle_t *io, const char *s, size_t len)
     return len;
 }
 
+#if ENABLE_PANIC_SHELL
 FILE *get_panic_fd(void)
 {
     static const io_handle_hooks_t panic_hooks = {
@@ -120,6 +122,7 @@ FILE *get_panic_fd(void)
 
     return &panic_fd;
 }
+#endif
 
 void hexdump(const void *ptr, size_t len)
 {

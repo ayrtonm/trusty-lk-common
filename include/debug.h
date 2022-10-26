@@ -51,8 +51,10 @@ __BEGIN_CDECLS
 
 #if !DISABLE_DEBUG_OUTPUT
 
+#if ENABLE_PANIC_SHELL
 /* Obtain the panic file descriptor. */
 FILE *get_panic_fd(void);
+#endif
 
 /* dump memory */
 void hexdump(const void *ptr, size_t len);

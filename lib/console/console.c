@@ -892,6 +892,7 @@ done:
     buffer[pos] = 0;
 }
 
+#if ENABLE_PANIC_SHELL
 void panic_shell_start(void)
 {
     dprintf(INFO, "entering panic shell loop\n");
@@ -933,6 +934,7 @@ void panic_shell_start(void)
         command->cmd_callback(argc, args);
     }
 }
+#endif
 
 #if LK_DEBUGLEVEL > 1
 static int cmd_test(int argc, const cmd_args *argv)
