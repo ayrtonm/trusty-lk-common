@@ -52,6 +52,7 @@
 #include <stdlib.h>
 #include <arch.h>
 #include <arch/mmu.h>
+#include <arch/tbi.h>
 #include <kernel/vm_obj.h>
 #include <lib/binary_search_tree.h>
 #include <lk/reflist.h>
@@ -106,6 +107,7 @@ STATIC_ASSERT(KERNEL_ASPACE_BASE + (KERNEL_ASPACE_SIZE - 1) > KERNEL_ASPACE_BASE
 
 static inline bool is_kernel_address(vaddr_t va)
 {
+    va = arch_adjusted_vaddr(va, true);
     return (va >= (vaddr_t)KERNEL_ASPACE_BASE && va <= ((vaddr_t)KERNEL_ASPACE_BASE + ((vaddr_t)KERNEL_ASPACE_SIZE - 1)));
 }
 
@@ -121,6 +123,7 @@ STATIC_ASSERT(USER_ASPACE_BASE + (USER_ASPACE_SIZE - 1) > USER_ASPACE_BASE);
 
 static inline bool is_user_address(vaddr_t va)
 {
+    va = arch_adjusted_vaddr(va, false);
     return (va >= USER_ASPACE_BASE && va <= (USER_ASPACE_BASE + (USER_ASPACE_SIZE - 1)));
 }
 

@@ -61,8 +61,14 @@ static uint64_t arch_mmu_asid(arch_aspace_t *aspace)
     return aspace->asid & BIT_MASK(ARM64_ASID_BITS);
 }
 
+static inline vaddr_t adjusted_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
+{
+    return arch_adjusted_vaddr(vaddr, aspace->flags & ARCH_ASPACE_FLAG_KERNEL);
+}
+
 static inline bool is_valid_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
 {
+    vaddr = adjusted_vaddr(aspace, vaddr);
     return (vaddr >= aspace->base && vaddr <= aspace->base + (aspace->size - 1));
 }
 
@@ -140,6 +146,7 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
     if (!is_valid_vaddr(aspace, vaddr))
         return ERR_OUT_OF_RANGE;
 
+    vaddr = adjusted_vaddr(aspace, vaddr);
     /* compute shift values based on if this address space is for kernel or user space */
     if (aspace->flags & ARCH_ASPACE_FLAG_KERNEL) {
         index_shift = MMU_KERNEL_TOP_SHIFT;
@@ -572,6 +579,8 @@ int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t cou
     if (!is_valid_vaddr(aspace, vaddr))
         return ERR_OUT_OF_RANGE;
 
+    vaddr = adjusted_vaddr(aspace, vaddr);
+
     /* paddr and vaddr must be aligned */
     DEBUG_ASSERT(IS_PAGE_ALIGNED(vaddr));
     DEBUG_ASSERT(IS_PAGE_ALIGNED(paddr));
@@ -616,6 +625,8 @@ int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, size_t count)
 
     if (!is_valid_vaddr(aspace, vaddr))
         return ERR_OUT_OF_RANGE;
+
+    vaddr = adjusted_vaddr(aspace, vaddr);
 
     DEBUG_ASSERT(IS_PAGE_ALIGNED(vaddr));
     if (!IS_PAGE_ALIGNED(vaddr))
