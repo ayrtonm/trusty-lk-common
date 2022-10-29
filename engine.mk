@@ -175,6 +175,9 @@ GLOBAL_SHARED_COMPILEFLAGS += -Wimplicit-fallthrough
 # VLAs can have subtle security bugs and assist exploits, so ban them.
 GLOBAL_SHARED_COMPILEFLAGS += -Wvla
 
+# set the libc implementation to musl or lk
+LK_LIBC_IMPLEMENTATION ?= musl
+
 # try to include the project file
 -include project/$(PROJECT).mk
 ifndef TARGET

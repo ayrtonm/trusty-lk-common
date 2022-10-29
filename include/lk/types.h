@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <inttypes.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -35,8 +36,6 @@ typedef unsigned char u_char;
 typedef unsigned short u_short;
 typedef unsigned int u_int;
 typedef unsigned long u_long;
-
-typedef long long     off_t;
 
 typedef int status_t;
 
@@ -85,8 +84,6 @@ enum handler_return {
     INT_NO_RESCHEDULE = 0,
     INT_RESCHEDULE,
 };
-
-typedef signed long int ssize_t;
 
 typedef uint8_t u8;
 typedef uint16_t u16;

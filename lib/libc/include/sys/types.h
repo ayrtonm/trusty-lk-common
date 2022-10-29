@@ -23,3 +23,8 @@
 #pragma once
 
 #include <lk/types.h>
+
+/* LK and musl have different definitions for these types so only keep the old
+ * definitions when building with LK libc. */
+typedef long long off_t;
+typedef signed long int ssize_t;
