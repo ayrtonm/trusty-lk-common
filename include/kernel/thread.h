@@ -70,6 +70,9 @@ enum thread_tls_list {
 #if defined(UBSAN_ENABLED) || defined(CFI_ENABLED)
     TLS_ENTRY_UBSAN,
 #endif
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+    TLS_ENTRY_LIBC,
+#endif
     MAX_TLS_ENTRY
 };
 
@@ -81,6 +84,7 @@ enum thread_tls_list {
 #define THREAD_FLAG_DEBUG_STACK_BOUNDS_CHECK  (1U<<5)
 #define THREAD_FLAG_EXIT_ON_PANIC             (1U<<6)
 #define THREAD_FLAG_FREE_SHADOW_STACK         (1U<<7)
+#define THREAD_FLAG_FREE_LIBC_STATE           (1U<<8)
 
 #define THREAD_MAGIC (0x74687264) // 'thrd'
 

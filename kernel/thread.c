@@ -50,6 +50,9 @@
 #if WITH_KERNEL_VM
 #include <kernel/vm.h>
 #endif
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+#include <trusty/libc_state.h>
+#endif
 
 #if THREAD_STATS
 struct thread_stats thread_stats[SMP_MAX_CPUS];
@@ -306,6 +309,26 @@ thread_t *thread_create_etc(thread_t *t, const char *name, thread_start_routine 
     for (i=0; i < MAX_TLS_ENTRY; i++)
         t->tls[i] = current_thread->tls[i];
 
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+    /* set up thread-local libc info */
+    ret = libc_state_thread_init(t);
+    if (ret != NO_ERROR) {
+#if KERNEL_SCS_ENABLED
+        if (flags & THREAD_FLAG_FREE_SHADOW_STACK) {
+            free(t->shadow_stack);
+        }
+#endif
+        if (flags & THREAD_FLAG_FREE_STACK) {
+            free(t->stack);
+        }
+        if (flags & THREAD_FLAG_FREE_STRUCT) {
+            free(t);
+        }
+        return NULL;
+    }
+    flags |= THREAD_FLAG_FREE_LIBC_STATE;
+#endif
+
     /* set up the initial stack frame */
     arch_thread_initialize(t);
 
@@ -479,6 +502,16 @@ status_t thread_detach_and_resume(thread_t *t)
 
 static void thread_free(thread_t *t)
 {
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+    int ret;
+
+    /* free thread-local libc info */
+    if (t->flags & THREAD_FLAG_FREE_LIBC_STATE) {
+        ret = libc_state_thread_free(t);
+        DEBUG_ASSERT(ret == NO_ERROR);
+    }
+#endif
+
     /* free its stack and the thread structure itself */
     if (t->flags & THREAD_FLAG_FREE_STACK && t->stack)
         vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)t->stack);
