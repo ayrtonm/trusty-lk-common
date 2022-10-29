@@ -83,6 +83,9 @@ int vsnprintf_filtered(char *str, size_t len, const char *fmt, va_list ap);
 // sccanf is not implemented.
 int sscanf(const char* str, const char* format, ...);
 
+io_handle_t* fd_io_handle(int fd);
+io_handle_t* file_io_handle(FILE* file);
+
 __END_CDECLS
 
 #endif
