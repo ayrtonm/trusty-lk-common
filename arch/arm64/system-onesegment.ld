@@ -15,7 +15,7 @@ SECTIONS
     /DISCARD/ : {
         *libclang_rt.builtins-aarch64-android.a:cpu_model.c.o(
             .text.init_have_lse_atomics
-            .init_array
+            .init_array*
         )
     }
 
