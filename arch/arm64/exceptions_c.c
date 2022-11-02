@@ -259,7 +259,7 @@ __WEAK void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit)
     panic("unhandled syscall vector\n");
 }
 
-static void print_fault_code(uint32_t fsc) {
+static void print_fault_code(uint32_t fsc, uint64_t far) {
     printf("fault code 0x%x: ", fsc);
     switch (fsc) {
         case 0b000000:
@@ -289,9 +289,17 @@ static void print_fault_code(uint32_t fsc) {
             printf("External abort");
             break;
 
-        case 0b010001:
-            printf("Tag check fault");
+        case 0b010001: {
+            uint64_t used_tag = (far >> 56) & 0xf;
+            int real_tag = tag_for_address(far);
+            printf("Tag check fault: %" PRIu64 " should be ", used_tag);
+            if (real_tag < 0) {
+                printf(" ? (faulted while trying to read actual tag)");
+            } else {
+                printf("%d", real_tag);
+            }
             break;
+        }
 
         case 0b010100:
         case 0b010101:
@@ -378,7 +386,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             }
             printf("instruction abort: PC at 0x%" PRIx64 "(0x%lx)\n", iframe->elr,
                    display_pc);
-            print_fault_code(BITS(iss, 5, 0));
+            print_fault_code(BITS(iss, 5, 0), 0);
             break;
         case 0b100100: /* data abort from lower level */
         case 0b100101: { /* data abort from same level */
@@ -411,7 +419,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
                         BITS_SHIFT(iss,20,16),
                         BIT_SHIFT(iss,14) ? "" : "no");
             }
-            print_fault_code(dfsc);
+            print_fault_code(dfsc, far);
             break;
         }
         case 0b111100: {

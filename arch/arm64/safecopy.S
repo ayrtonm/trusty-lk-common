@@ -46,3 +46,15 @@ FUNCTION(copy_from_anywhere)
 	b.hi	.Lcopy_from_anywhere_fault
 	mov	x0, #ERR_FAULT
 	ret
+
+/* int tag_for_address(vaddr_t addr) */
+FUNCTION(tag_for_address)
+.arch_extension memtag
+	set_fault_handler	.Ltag_for_address_fault
+	ldg	x0, [x0]
+	ubfx	x0, x0, #56, #4
+	ret
+
+.Ltag_for_address_fault:
+	mov	x0, #ERR_FAULT
+	ret

@@ -27,3 +27,4 @@
 
 status_t copy_from_anywhere(void *dest, vaddr_t src, size_t len);
 
+int tag_for_address(vaddr_t addr);
