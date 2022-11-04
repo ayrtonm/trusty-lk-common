@@ -40,6 +40,10 @@ arm_reset:
     orr     tmp, tmp, #(1<<2)  /* Enable dcache/ucache */
     orr     tmp, tmp, #(1<<3)  /* Enable Stack Alignment Check EL1 */
     orr     tmp, tmp, #(1<<4)  /* Enable Stack Alignment Check EL0 */
+    orr     tmp, tmp, #(1<<43) /* Allocation Tag Access in EL1 */
+    orr     tmp, tmp, #(1<<42) /* Allocation Tag Access in EL0 */
+    orr     tmp, tmp, #(1<<40) /* Tag check faults in EL1 are synchronous */
+    orr     tmp, tmp, #(1<<38) /* Tag check faults in EL0 are synchronous */
     bic     tmp, tmp, #(1<<1)  /* Disable Alignment Checking for EL1 EL0 */
     msr     sctlr_el1, tmp
 
