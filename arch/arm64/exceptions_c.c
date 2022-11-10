@@ -353,6 +353,8 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     uint32_t il = BIT_SHIFT(esr, 25);
     uint32_t iss = BITS(esr, 24, 0);
     uintptr_t display_pc = iframe->elr;
+    uint64_t far;
+    __UNUSED bool print_mem_around_fault = false;
 
     if (from_lower) {
         /*
@@ -395,7 +397,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             }
 
             /* read the FAR register */
-            uint64_t far = ARM64_READ_SYSREG(far_el1);
+            far = ARM64_READ_SYSREG(far_el1);
 
             /* decode the iss */
             uint32_t dfsc = BITS(iss, 5, 0);
@@ -409,6 +411,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
                 printf("unknown address (FAR 0x%" PRIx64 " not valid)", far);
             } else {
                 printf("0x%" PRIx64, far);
+                print_mem_around_fault = true;
             }
             printf(", PC at 0x%" PRIx64 "(0x%lx)\n", iframe->elr, display_pc);
             if (BIT(iss, 24)) { /* ISV bit */
@@ -441,6 +444,9 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     dump_iframe(iframe);
 #if TEST_BUILD
     dump_memory_around_registers(iframe);
+    if (print_mem_around_fault) {
+        dump_memory_around_register("fault address", far);
+    }
 #endif
 
     if (from_lower) {
