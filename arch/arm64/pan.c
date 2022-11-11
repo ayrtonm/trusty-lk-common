@@ -62,7 +62,7 @@ static void arm64_pan_init(uint level) {
 
         /* clear SPAN bit in SCTLR_EL1 - exceptions to EL1 set PSTATE.PAN */
         sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
-        sctlr_el1 &= ~(1U << SCTLR_EL1_SPAN_SHIFT);
+        sctlr_el1 &= ~(1ull << SCTLR_EL1_SPAN_SHIFT);
 
         /* set EPAN if PAN3 supported - don't allocate cache for speculative
          * accesses which would generate a Permission fault if not speculative.
