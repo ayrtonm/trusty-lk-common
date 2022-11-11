@@ -29,9 +29,10 @@
 FUNCTION(copy_from_anywhere)
 	cbz	x2, .Lcopy_from_anywhere_done
 .Lcopy_from_anywhere_loop:
-	set_fault_handler	.Lcopy_from_anywhere_fault
+	set_fault_handler	.Lcopy_from_anywhere_tryuser
 	ldrb	w9, [x1]
 
+.Lcopy_from_anywhere_continue:
 	add	x1, x1, #1
 	strb	w9, [x0], #1
 	subs	x2, x2, #1
@@ -39,6 +40,11 @@ FUNCTION(copy_from_anywhere)
 .Lcopy_from_anywhere_done:
 	mov	x0, #0
 	ret
+
+.Lcopy_from_anywhere_tryuser:
+	set_fault_handler	.Lcopy_from_anywhere_fault
+	ldtrb	w9, [x1]
+	b .Lcopy_from_anywhere_continue
 
 .Lcopy_from_anywhere_fault:
 	strb	wzr, [x0], #1
