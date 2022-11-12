@@ -63,7 +63,9 @@ void arch_mmu_map_early(vaddr_t vaddr,
                         paddr_t paddr,
                         size_t size,
                         uint flags) {
-    pte_t attr = mmu_flags_to_pte_attr(flags);
+    pte_t attr;
+    bool res = mmu_flags_to_pte_attr(flags, &attr);
+    ASSERT(res);
     const uintptr_t vaddr_top_mask = ~0UL << MMU_KERNEL_SIZE_SHIFT;
     ASSERT((vaddr & vaddr_top_mask) == vaddr_top_mask);
     int ret = arm64_mmu_map_pt(vaddr, vaddr ^ vaddr_top_mask, paddr, size, attr,

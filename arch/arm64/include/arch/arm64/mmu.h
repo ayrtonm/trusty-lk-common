@@ -233,7 +233,10 @@
 #define MMU_MAIR_ATTR2                  MMU_MAIR_ATTR(2, 0xff)
 #define MMU_PTE_ATTR_NORMAL_MEMORY      MMU_PTE_ATTR_ATTR_INDEX(2)
 
-#define MMU_MAIR_ATTR3                  (0)
+/* As Normal Memory above, but tagged */
+#define MMU_MAIR_ATTR3                  MMU_MAIR_ATTR(3, 0xf0)
+#define MMU_PTE_ATTR_NORMAL_MEMORY_TAGGED MMU_PTE_ATTR_ATTR_INDEX(3)
+
 #define MMU_MAIR_ATTR4                  (0)
 #define MMU_MAIR_ATTR5                  (0)
 #define MMU_MAIR_ATTR6                  (0)

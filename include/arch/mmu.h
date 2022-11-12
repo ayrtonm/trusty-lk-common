@@ -40,6 +40,7 @@ __BEGIN_CDECLS
 #define ARCH_MMU_FLAG_PERM_RO           (1U<<3)
 #define ARCH_MMU_FLAG_PERM_NO_EXECUTE   (1U<<4)
 #define ARCH_MMU_FLAG_NS                (1U<<5) /* NON-SECURE */
+#define ARCH_MMU_FLAG_TAGGED            (1U<<6)
 #define ARCH_MMU_FLAG_INVALID           (1U<<7) /* indicates that flags are not specified */
 
 /* forward declare the per-address space arch-specific context object */

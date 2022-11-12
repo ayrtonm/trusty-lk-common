@@ -73,13 +73,24 @@ static inline bool is_valid_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
 }
 
 /* convert user level mmu flags to flags that go in L1 descriptors */
-static pte_t mmu_flags_to_pte_attr(uint flags)
+static bool mmu_flags_to_pte_attr(uint flags, pte_t* out_attr)
 {
     pte_t attr = MMU_PTE_ATTR_AF;
 
+    if (flags & ARCH_MMU_FLAG_TAGGED) {
+        if ((flags & ARCH_MMU_FLAG_CACHE_MASK) & ~ARCH_MMU_FLAG_CACHED) {
+            /* only normal memory can be tagged */
+            return false;
+        }
+    }
     switch (flags & ARCH_MMU_FLAG_CACHE_MASK) {
         case ARCH_MMU_FLAG_CACHED:
-            attr |= MMU_PTE_ATTR_NORMAL_MEMORY | MMU_PTE_ATTR_SH_INNER_SHAREABLE;
+            if (flags & ARCH_MMU_FLAG_TAGGED) {
+                attr |= MMU_PTE_ATTR_NORMAL_MEMORY_TAGGED;
+            } else {
+                attr |= MMU_PTE_ATTR_NORMAL_MEMORY;
+            }
+            attr |= MMU_PTE_ATTR_SH_INNER_SHAREABLE;
             break;
         case ARCH_MMU_FLAG_UNCACHED:
             attr |= MMU_PTE_ATTR_STRONGLY_ORDERED;
@@ -90,7 +101,7 @@ static pte_t mmu_flags_to_pte_attr(uint flags)
         default:
             /* invalid user-supplied flag */
             DEBUG_ASSERT(0);
-            return ERR_INVALID_ARGS;
+            return false;
     }
 
     switch (flags & (ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_RO)) {
@@ -122,7 +133,8 @@ static pte_t mmu_flags_to_pte_attr(uint flags)
         attr |= MMU_PTE_ATTR_NON_SECURE;
     }
 
-    return attr;
+    *out_attr = attr;
+    return true;
 }
 
 #ifndef EARLY_MMU
@@ -209,7 +221,11 @@ status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, ui
             case MMU_PTE_ATTR_DEVICE:
                 mmu_flags |= ARCH_MMU_FLAG_UNCACHED_DEVICE;
                 break;
+            case MMU_PTE_ATTR_NORMAL_MEMORY_TAGGED:
+                mmu_flags |= ARCH_MMU_FLAG_TAGGED;
+                break;
             case MMU_PTE_ATTR_NORMAL_MEMORY:
+                mmu_flags |= ARCH_MMU_FLAG_CACHED;
                 break;
             default:
                 PANIC_UNIMPLEMENTED;
@@ -594,17 +610,22 @@ int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t cou
     if (count == 0)
         return NO_ERROR;
 
+    pte_t pte_attr;
+    if (!mmu_flags_to_pte_attr(flags, &pte_attr)) {
+        return ERR_INVALID_ARGS;
+    }
+
     int ret;
     if (aspace->flags & ARCH_ASPACE_FLAG_KERNEL) {
         ret = arm64_mmu_map(vaddr, paddr, count * PAGE_SIZE,
-                         mmu_flags_to_pte_attr(flags),
+                         pte_attr,
                          ~0UL << MMU_KERNEL_SIZE_SHIFT, MMU_KERNEL_SIZE_SHIFT,
                          MMU_KERNEL_TOP_SHIFT, MMU_KERNEL_PAGE_SIZE_SHIFT,
                          aspace->tt_virt, MMU_ARM64_GLOBAL_ASID);
     } else {
         asid_t asid = arch_mmu_asid(aspace);
         ret = arm64_mmu_map(vaddr, paddr, count * PAGE_SIZE,
-                         mmu_flags_to_pte_attr(flags) | MMU_PTE_ATTR_NON_GLOBAL,
+                         pte_attr | MMU_PTE_ATTR_NON_GLOBAL,
                          0, MMU_USER_SIZE_SHIFT,
                          MMU_USER_TOP_SHIFT, MMU_USER_PAGE_SIZE_SHIFT,
                          aspace->tt_virt, asid);

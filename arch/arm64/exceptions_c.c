@@ -113,11 +113,12 @@ static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags) {
 
 static void printmemattrs(
         const char *prefix, paddr_t start, size_t len, uint flags) {
-    printf("%s0x%lx/0x%zx, flags: 0x%02x [ read%s%s%s%s%s%s ]):\n",
+    printf("%s0x%lx/0x%zx, flags: 0x%02x [ read%s%s%s%s%s%s%s ]):\n",
             prefix, start, len, flags,
             !(flags & ARCH_MMU_FLAG_PERM_RO) ? " write" : "",
             !(flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE) ? " execute" : "",
             (flags & ARCH_MMU_FLAG_PERM_USER) ? " user" : "",
+            (flags & ARCH_MMU_FLAG_TAGGED) ? " tagged" : "",
             (flags & ARCH_MMU_FLAG_NS) ? " nonsecure" : "",
             (flags & ARCH_MMU_FLAG_UNCACHED_DEVICE) ? " device" : "",
             (flags & ARCH_MMU_FLAG_UNCACHED) ? " uncached" : "");
