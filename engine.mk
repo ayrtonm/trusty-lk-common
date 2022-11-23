@@ -276,6 +276,12 @@ GLOBAL_DEFINES += \
 	TEST_BUILD=1
 endif
 
+# By default we can accept 64 connections on a port. Currently we only need more
+# if coverage is enabled (this is only true on fuzzing)
+IPC_MAX_HANDLES ?= 64
+GLOBAL_DEFINES += \
+	IPC_MAX_HANDLES=$(IPC_MAX_HANDLES)
+
 #check if we are doing a release build, if not sure assume release
 RELEASE_BUILD ?= true
 ifeq ($(RELEASE_BUILD),false)
