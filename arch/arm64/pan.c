@@ -53,12 +53,8 @@ static void arm64_pan_init(uint level) {
 
     if (pan_support != ID_AA64MMFR1_EL1_PAN_NOT_SUPPORTED) {
         uint64_t sctlr_el1;
-        uint64_t pan;
 
-        /* set PAN bit in PAN sysreg - enable PAN now */
-        pan = ARM64_READ_SYSREG(PAN);
-        pan |= 1ull << PAN_PAN_SHIFT;
-        ARM64_WRITE_SYSREG(PAN, pan);
+        arm64_enable_pan();
 
         /* clear SPAN bit in SCTLR_EL1 - exceptions to EL1 set PSTATE.PAN */
         sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
@@ -88,4 +84,20 @@ bool arm64_pan_enabled(void) {
     /* Only access PAN sysreg if supported to avoid UNDEFINED */
     return arm64_pan_supported() &&
            ((ARM64_READ_SYSREG(PAN) >> PAN_PAN_SHIFT) & PAN_PAN_MASK) != 0;
+}
+
+void arm64_disable_pan(void) {
+    if (arm64_pan_supported()) {
+        uint64_t pan = ARM64_READ_SYSREG(PAN);
+        pan &= ~(1ull << PAN_PAN_SHIFT);
+        ARM64_WRITE_SYSREG(PAN, pan);
+    }
+}
+
+void arm64_enable_pan(void) {
+    if (arm64_pan_supported()) {
+        uint64_t pan = ARM64_READ_SYSREG(PAN);
+        pan |= 1ull << PAN_PAN_SHIFT;
+        ARM64_WRITE_SYSREG(PAN, pan);
+    }
 }

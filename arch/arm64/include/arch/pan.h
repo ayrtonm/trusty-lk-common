@@ -29,3 +29,6 @@ bool arm64_pan_enabled(void);
 
 bool arm64_pan_supported(void);
 
+void arm64_disable_pan(void);
+
+void arm64_enable_pan(void);

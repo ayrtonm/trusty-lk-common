@@ -29,6 +29,7 @@
 #include <arch/arch_ops.h>
 #include <arch/arm64.h>
 #include <arch/mmu.h>
+#include <arch/pan.h>
 #include <arch/safecopy.h>
 #include <kernel/vm.h>
 #include <lib/trusty/trusty_app.h>
@@ -291,14 +292,19 @@ static void print_fault_code(uint32_t fsc, uint64_t far) {
             break;
 
         case 0b010001: {
-            uint64_t used_tag = (far >> 56) & 0xf;
-            int real_tag = tag_for_address(far);
-            printf("Tag check fault: %" PRIu64 " should be ", used_tag);
-            if (real_tag < 0) {
-                printf(" ? (faulted while trying to read actual tag)");
-            } else {
-                printf("%d", real_tag);
+            printf("Tag check fault");
+#if TEST_BUILD
+            {
+                uint64_t used_tag = (far >> 56) & 0xf;
+                int real_tag = tag_for_address(far);
+                printf(": %" PRIu64 " should be ", used_tag);
+                if (real_tag < 0) {
+                    printf(" ? (faulted while trying to read actual tag)");
+                } else {
+                    printf("%d", real_tag);
+                }
             }
+#endif
             break;
         }
 

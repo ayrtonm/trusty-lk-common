@@ -23,8 +23,23 @@
 
 #pragma once
 
+#include <arch/pan.h>
 #include <sys/types.h>
 
 status_t copy_from_anywhere(void *dest, vaddr_t src, size_t len);
 
-int tag_for_address(vaddr_t addr);
+int tag_for_addr_(vaddr_t addr);
+
+static int tag_for_address(vaddr_t addr) {
+    status_t ret;
+    bool pan_enabled = arm64_pan_enabled();
+    if (pan_enabled) {
+        /* temporarily disable PAN so we can read tags */
+        arm64_disable_pan();
+    }
+    ret = tag_for_addr_(addr);
+    if (pan_enabled) {
+        arm64_enable_pan();
+    }
+    return ret;
+}

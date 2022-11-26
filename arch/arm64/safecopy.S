@@ -53,14 +53,14 @@ FUNCTION(copy_from_anywhere)
 	mov	x0, #ERR_FAULT
 	ret
 
-/* int tag_for_address(vaddr_t addr) */
-FUNCTION(tag_for_address)
+/* int tag_for_addr_(vaddr_t addr) */
+FUNCTION(tag_for_addr_)
 .arch_extension memtag
-	set_fault_handler	.Ltag_for_address_fault
+	set_fault_handler	.Ltag_for_addr__fault
 	ldg	x0, [x0]
 	ubfx	x0, x0, #56, #4
 	ret
 
-.Ltag_for_address_fault:
+.Ltag_for_addr__fault:
 	mov	x0, #ERR_FAULT
 	ret
