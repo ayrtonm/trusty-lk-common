@@ -113,13 +113,39 @@ static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags) {
 }
 
 static void printmemattrs(
-        const char *prefix, paddr_t start, size_t len, uint flags) {
-    printf("%s0x%lx/0x%zx, flags: 0x%02x [ read%s%s%s%s%s%s%s ]):\n",
-            prefix, start, len, flags,
+        const char *prefix, paddr_t pstart, vaddr_t vstart, size_t len,
+        uint flags) {
+    if (!len) {
+        return;
+    }
+    printf("%s0x%lx/0x%zx, flags: 0x%02x [ read%s%s%s",
+            prefix, pstart, len, flags,
             !(flags & ARCH_MMU_FLAG_PERM_RO) ? " write" : "",
             !(flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE) ? " execute" : "",
-            (flags & ARCH_MMU_FLAG_PERM_USER) ? " user" : "",
-            (flags & ARCH_MMU_FLAG_TAGGED) ? " tagged" : "",
+            (flags & ARCH_MMU_FLAG_PERM_USER) ? " user" : "");
+    if (flags & ARCH_MMU_FLAG_TAGGED) {
+        printf(" tagged(");
+        /*
+         * There is one tag for every 16-byte aligned 16 bytes, so depending
+         * on len and the alignment of vstart, there may be one extra tag.
+         */
+        int numtags = 1 + (round_down(vstart + (len - 1), MTE_GRANULE_SIZE) -
+                       round_down(vstart, MTE_GRANULE_SIZE)) / MTE_GRANULE_SIZE;
+        for (int i = 0; i < numtags; i++) {
+            if (i) {
+                printf("/");
+            }
+            int tag = tag_for_address(vstart + i * MTE_GRANULE_SIZE);
+            if (tag < 0) {
+                printf("?");
+            } else {
+                printf("%d", tag);
+            }
+        }
+        printf(")");
+    }
+
+    printf("%s%s%s ]):\n",
             (flags & ARCH_MMU_FLAG_NS) ? " nonsecure" : "",
             (flags & ARCH_MMU_FLAG_UNCACHED_DEVICE) ? " device" : "",
             (flags & ARCH_MMU_FLAG_UNCACHED) ? " uncached" : "");
@@ -178,7 +204,7 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
 
     printf("\nmemory around %3s (", name);
     if (info1valid) {
-        printmemattrs("phys: ", paddr1, bytesonfirstpage, flags1);
+        printmemattrs("phys: ", paddr1, addr, bytesonfirstpage, flags1);
     } else {
         printf("phys: <unmapped>/0x%" PRIx64 "):\n", bytesonfirstpage);
     }
@@ -186,6 +212,7 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
         if (info2valid) {
             printmemattrs("              and (phys: ",
                    paddr2,
+                   secondpageaddr,
                    sizeof(data) - bytesonfirstpage,
                    flags2);
         } else {
@@ -194,24 +221,35 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
         }
     }
 
-    for (size_t offset = 0; offset < sizeof(data); offset += 16) {
+    const int linelen = 16;
+    int tag_granule_offset = (addr & (MTE_GRANULE_SIZE - 1));
+    for (size_t offset = 0; offset < sizeof(data); offset += linelen) {
         printf("0x%016" PRIx64 ": ", wrap_add(addr, offset));
 
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < linelen; i++) {
             if (i == 8) {
                 printf(" ");
             }
             if ((offset + i < bytesonfirstpage && read1ok) ||
                     (offset + i >= bytesonfirstpage && read2ok)) {
-                printf("%02hhx ", data[offset + i]);
+                printf("%02hhx", data[offset + i]);
+                if (i != (linelen - 1) &&
+                    ((offset + i + tag_granule_offset) %
+                     MTE_GRANULE_SIZE) == (MTE_GRANULE_SIZE - 1) &&
+                    ((offset + i < bytesonfirstpage) ?  flags1 : flags2) &
+                    ARCH_MMU_FLAG_TAGGED) {
+                    printf("/");
+                } else {
+                    printf(" ");
+                }
             } else {
-                printf("-- ");
+                printf("--");
             }
         }
 
         printf("|");
 
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < linelen; i++) {
             unsigned char c = data[offset + i];
             printf("%c", ((offset + i < bytesonfirstpage && read1ok) ||
                     (offset + i >= bytesonfirstpage && read2ok)) &&
