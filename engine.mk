@@ -96,7 +96,11 @@ GLOBAL_SHARED_LDFLAGS += --undefined=__aeabi_unwind_cpp_pr0
 
 GLOBAL_KERNEL_LDFLAGS += $(addprefix -L,$(LKINC))
 
-GLOBAL_LTO_COMPILEFLAGS += -fvisibility=hidden -flto=thin
+GLOBAL_LTO_COMPILEFLAGS += \
+	-fvisibility=hidden \
+	-flto=full \
+	-fvirtual-function-elimination \
+	-fvisibility-inlines-hidden \
 
 # Rust flags for proc macros
 GLOBAL_HOST_RUSTFLAGS :=
