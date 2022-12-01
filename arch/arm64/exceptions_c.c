@@ -32,6 +32,7 @@
 #include <arch/pan.h>
 #include <arch/safecopy.h>
 #include <kernel/vm.h>
+#include <lib/mte.h>
 #include <lib/trusty/trusty_app.h>
 #include <inttypes.h>
 
@@ -391,6 +392,23 @@ static void print_fault_code(uint32_t fsc, uint64_t far) {
     printf("\n");
 }
 
+static void enable_tag_checks(void)
+{
+    if (trusty_mte_enabled()) {
+        /* Clearing Tag Check Override enables tag checking */
+        __asm__ volatile(".arch_extension memtag\n"
+                         "msr tco, #0");
+    }
+}
+
+static void disable_tag_checks(void)
+{
+    if (trusty_mte_enabled()) {
+        /* Setting Tag Check Override disables tag checking */
+        __asm__ volatile(".arch_extension memtag\n"
+                         "msr tco, #1");
+    }
+}
 void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
 {
     uint32_t esr = ARM64_READ_SYSREG(esr_el1);
@@ -400,6 +418,12 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     uintptr_t display_pc = iframe->elr;
     uint64_t far;
     __UNUSED bool print_mem_around_fault = false;
+
+    /*
+     * Tag checks are automatically disabled on taking an exception, so
+     * turn them back on
+     */
+    enable_tag_checks();
 
     if (from_lower) {
         /*
@@ -488,10 +512,12 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     printf("ESR 0x%x: ec 0x%x, il 0x%x, iss 0x%x\n", esr, ec, il, iss);
     dump_iframe(iframe);
 #if TEST_BUILD
+    disable_tag_checks();
     dump_memory_around_registers(iframe);
     if (print_mem_around_fault) {
         dump_memory_around_register("fault address", far);
     }
+    enable_tag_checks();
 #endif
 
     if (from_lower) {
