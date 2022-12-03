@@ -31,7 +31,7 @@
  */
 __WEAK void platform_pputc(char c)
 {
-    return platform_dputc(c);
+    platform_dputc(c);
 }
 
 __WEAK int platform_pgetc(char *c, bool wait)
