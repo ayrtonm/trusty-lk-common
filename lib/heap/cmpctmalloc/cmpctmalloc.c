@@ -307,7 +307,7 @@ static void unlink_free(free_t *free_area, int bucket)
 
 static void unlink_free_unknown_bucket(free_t *free_area)
 {
-    return unlink_free(free_area, size_to_index_freeing(free_area->header.size - sizeof(header_t)));
+    unlink_free(free_area, size_to_index_freeing(free_area->header.size - sizeof(header_t)));
 }
 
 static void *create_allocation_header(
