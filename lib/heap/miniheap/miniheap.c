@@ -172,6 +172,7 @@ try_merge:
 
 static struct free_heap_chunk *heap_create_free_chunk(void *ptr, size_t len, bool allow_debug)
 {
+    DEBUG_ASSERT(ptr);
     DEBUG_ASSERT((len % sizeof(void *)) == 0); // size must be aligned on pointer boundary
 
 #if DEBUG_HEAP
@@ -529,6 +530,7 @@ static ssize_t heap_grow(size_t size)
 
 void miniheap_init(void *ptr, size_t len)
 {
+    DEBUG_ASSERT(ptr);
     LTRACEF("ptr %p, len %zu\n", ptr, len);
 
     // create a mutex
