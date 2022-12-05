@@ -24,6 +24,7 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 
@@ -44,13 +45,13 @@ memmove(void *dest, void const *src, size_t count)
     if (count == 0 || dest == src)
         return dest;
 
-    if ((long)d < (long)s) {
-        if (((long)d | (long)s) & lmask) {
+    if ((uintptr_t)d < (uintptr_t)s) {
+        if (((uintptr_t)d | (uintptr_t)s) & lmask) {
             // src and/or dest do not align on word boundary
-            if ((((long)d ^ (long)s) & lmask) || (count < lsize))
+            if ((((uintptr_t)d ^ (uintptr_t)s) & lmask) || (count < lsize))
                 len = count; // copy the rest of the buffer with the byte mover
             else
-                len = lsize - ((long)d & lmask); // move the ptrs up to a word boundary
+                len = lsize - ((uintptr_t)d & lmask); // move the ptrs up to a word boundary
 
             count -= len;
             for (; len > 0; len--)
@@ -66,12 +67,12 @@ memmove(void *dest, void const *src, size_t count)
     } else {
         d += count;
         s += count;
-        if (((long)d | (long)s) & lmask) {
+        if (((uintptr_t)d | (uintptr_t)s) & lmask) {
             // src and/or dest do not align on word boundary
-            if ((((long)d ^ (long)s) & lmask) || (count <= lsize))
+            if ((((uintptr_t)d ^ (uintptr_t)s) & lmask) || (count <= lsize))
                 len = count;
             else
-                len = ((long)d & lmask);
+                len = ((uintptr_t)d & lmask);
 
             count -= len;
             for (; len > 0; len--)
