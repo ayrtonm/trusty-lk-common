@@ -237,6 +237,9 @@ thread_t *thread_create_etc(thread_t *t, const char *name, thread_start_routine 
     int ret;
     unsigned int flags = 0;
 
+    ASSERT(priority > IDLE_PRIORITY);
+    ASSERT(priority <= HIGHEST_PRIORITY);
+
     if (!t) {
         t = malloc(sizeof(thread_t));
         if (!t)
