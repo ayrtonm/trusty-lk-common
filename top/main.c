@@ -183,7 +183,7 @@ static int secondary_cpu_bootstrap2(void *arg)
 void lk_init_secondary_cpus(uint secondary_cpu_count)
 {
     if (secondary_cpu_count >= SMP_MAX_CPUS) {
-        dprintf(CRITICAL, "Invalid secondary_cpu_count %d, SMP_MAX_CPUS %d\n",
+        dprintf(CRITICAL, "Invalid secondary_cpu_count %u, SMP_MAX_CPUS %d\n",
                 secondary_cpu_count, SMP_MAX_CPUS);
         secondary_cpu_count = SMP_MAX_CPUS - 1;
     }
