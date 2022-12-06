@@ -854,8 +854,7 @@ static void thread_cond_mp_reschedule(thread_t *current_thread, const char *call
  * This is probably not the function you're looking for. See
  * thread_yield() instead.
  */
-void thread_resched(void)
-{
+static void thread_resched(void) {
     thread_t *oldthread;
     thread_t *newthread;
 
