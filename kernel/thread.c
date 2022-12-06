@@ -131,7 +131,7 @@ static void insert_in_run_queue_tail(thread_t *t)
     DEBUG_ASSERT(thread_lock_held());
 
     list_add_tail(&run_queue[t->priority], &t->queue_node);
-    run_queue_bitmap |= (1<<t->priority);
+    run_queue_bitmap |= (1U<<t->priority);
 }
 
 static void delete_from_run_queue(thread_t *t) {
