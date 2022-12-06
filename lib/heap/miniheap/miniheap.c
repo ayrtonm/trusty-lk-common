@@ -122,6 +122,9 @@ static struct free_heap_chunk *heap_insert_free_chunk(struct free_heap_chunk *ch
     theheap.remaining += chunk->len;
 
     // walk through the list, finding the node to insert before
+    // note: next_chunk is initialized to NULL by list_for_every_entry macro
+    // both when next item is the last element (entry->next == list)
+    // or its content is empty.
     list_for_every_entry(&theheap.free_list, next_chunk, struct free_heap_chunk, node) {
         if (chunk < next_chunk) {
 #if LK_DEBUGLEVEL > INFO

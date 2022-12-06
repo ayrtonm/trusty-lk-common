@@ -200,10 +200,10 @@ static inline struct list_node *list_next_wrap(struct list_node *list, struct li
 // Iterating over (entry) rather than the list can add UB when the list node is
 // not inside of the enclosing type, as may be the case for the list terminator.
 // We avoid this by iterating over the list node and only constructing the new
-// entry if it was not the list terminator.
+// entry if it was not the list terminator, otherwise setting it to null.
 #define list_for_every_entry(list, entry, type, member) \
     for (struct list_node *_list_for_every_cursor = (list)->next; \
-            (_list_for_every_cursor != (list)) && \
+            ((entry) = NULL, _list_for_every_cursor != (list)) && \
             ((entry) = containerof(_list_for_every_cursor, type, member)); \
             _list_for_every_cursor = _list_for_every_cursor->next)
 
@@ -214,7 +214,7 @@ static inline struct list_node *list_next_wrap(struct list_node *list, struct li
 #define list_for_every_entry_safe(list, entry, unused, type, member) \
     (void) unused; \
     for(struct list_node *_list_for_every_cursor = (list)->next; \
-            (_list_for_every_cursor != (list)) && \
+            ((entry) = NULL, _list_for_every_cursor != (list)) && \
             ((entry) = containerof(_list_for_every_cursor, type, member)) && \
             (_list_for_every_cursor = _list_for_every_cursor->next);)
 
