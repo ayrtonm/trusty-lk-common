@@ -56,7 +56,9 @@ static void usb_do_callbacks(usb_callback_op_t op, const union usb_callback_args
 static void append_desc_data(usb_descriptor *desc, const void *dat, size_t len)
 {
     uint8_t *ptr = malloc(desc->len + len);
-
+    if (!ptr) {
+        panic("append_desc_data malloc failed");
+    }
     memcpy(ptr, desc->desc, desc->len);
     memcpy(ptr + desc->len, dat, len);
 
@@ -90,13 +92,15 @@ uint8_t usb_get_current_iface_num_lowspeed(void)
 static int usb_append_interface(usb_descriptor *desc, const uint8_t *int_descr, size_t len)
 {
     uint8_t *ptr = malloc(len);
-    int interface_num;
+    if (!ptr) {
+        return ERR_NO_MEMORY;
+    }
 
     // create a temporary copy of the interface
     memcpy(ptr, int_descr, len);
 
     // find the last interface used
-    interface_num = usb_get_current_iface_num(desc);  // current interface
+    int interface_num = usb_get_current_iface_num(desc);  // current interface
 
     // patch our interface descriptor with the new id
     ptr[2] = interface_num;
@@ -110,6 +114,7 @@ static int usb_append_interface(usb_descriptor *desc, const uint8_t *int_descr, 
     interface_num++;
     ((uint8_t *)desc->desc)[4] = interface_num;
 
+    DEBUG_ASSERT(interface_num > 0);
     return interface_num - 1;
 }
 
@@ -160,8 +165,9 @@ status_t usb_add_string(const char *string, uint8_t id)
     size_t len = strlen(string);
 
     uint16_t *strbuf = malloc(len * 2 + 2);
-    if (!strbuf)
+    if (!strbuf) {
         return ERR_NO_MEMORY;
+    }
 
     /* build the usb string descriptor */
     strbuf[0] = 0x300 | (len * 2 + 2);
@@ -203,8 +209,9 @@ status_t usb_register_callback(usb_callback_t cb, void *cookie)
     DEBUG_ASSERT(cb);
 
     usb_callback_container_t *c = malloc(sizeof(usb_callback_container_t));
-    if (!c)
+    if (!c) {
         return ERR_NO_MEMORY;
+    }
 
     c->cb = cb;
     c->cookie = cookie;
