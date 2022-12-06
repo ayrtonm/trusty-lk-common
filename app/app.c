@@ -63,6 +63,9 @@ static void start_app(const struct app_descriptor *app)
 
     printf("starting app %s\n", app->name);
     thread_t *t = thread_create(app->name, &app_thread_entry, (void *)app, DEFAULT_PRIORITY, stack_size);
+    if (!t) {
+        panic("start_app thread creation failed");
+    }
     thread_detach(t);
     thread_resume(t);
 }
