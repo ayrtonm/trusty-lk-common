@@ -84,7 +84,7 @@ bool usbc_is_highspeed(void);
 
 static inline void usbc_dump_transfer(const usbc_transfer_t *t)
 {
-    printf("usb transfer %p: cb %p buf %p, buflen %zd, bufpos %u, result %d\n", t, t->callback, t->buf, t->buflen, t->bufpos, t->result);
+    printf("usb transfer %p: cb %p buf %p, buflen %zd, bufpos %u, result %d\n", (void*)t, (void*)t->callback, (void*)t->buf, t->buflen, t->bufpos, t->result);
 }
 
 __END_CDECLS
