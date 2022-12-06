@@ -42,6 +42,7 @@ int sem_post(semaphore_t *sem, bool resched)
      * If the count is or was negative then a thread is waiting for a resource, otherwise
      * it's safe to just increase the count available with no downsides
      */
+    assert(sem->count < INT_MAX);
     if (unlikely(++sem->count <= 0))
         ret = wait_queue_wake_one(&sem->wait, resched, NO_ERROR);
 
