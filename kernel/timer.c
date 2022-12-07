@@ -259,7 +259,7 @@ static enum handler_return timer_tick(void *arg, lk_time_ns_t now)
 
     uint cpu = arch_curr_cpu_num();
 
-    LTRACEF("cpu %u now %llu, sp %p\n", cpu, now, __GET_FRAME());
+    LTRACEF("cpu %u now %llu, fp %p\n", cpu, now, __GET_FRAME());
 
     spin_lock(&timer_lock);
 
