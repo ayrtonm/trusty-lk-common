@@ -55,14 +55,14 @@
 #define INCBIN(symname, sizename, filename, section) \
     INCBIN_ALIGNED(symname, sizename, filename, section, 4)
 
-#define INCBIN_ALIGNED(symname, sizename, filename, section, align)         \
-    __asm__ (".section " section "; .balign " #align "; .globl "#symname);  \
-    __asm__ (""#symname ":\n.incbin \"" filename "\"");                     \
-    __asm__ (".balign 1; "#symname "_end:");                                \
-    __asm__ (".balign " #align "; .globl "#sizename);                       \
-    __asm__ (""#sizename ": .long "#symname "_end - "#symname);             \
-    __asm__ (".previous");                                                  \
-    extern unsigned char symname[];                                         \
+#define INCBIN_ALIGNED(symname, sizename, filename, section, align)                \
+    __asm__ (".section " section ", \"a\"; .balign " #align "; .globl "#symname);  \
+    __asm__ (""#symname ":\n.incbin \"" filename "\"");                            \
+    __asm__ (".balign 1; "#symname "_end:");                                       \
+    __asm__ (".balign " #align "; .globl "#sizename);                              \
+    __asm__ (""#sizename ": .long "#symname "_end - "#symname);                    \
+    __asm__ (".previous");                                                         \
+    extern unsigned char symname[];                                                \
     extern unsigned int sizename
 
 #define INCFILE(symname, sizename, filename) INCBIN(symname, sizename, filename, ".rodata")
