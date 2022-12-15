@@ -22,6 +22,7 @@
  */
 #include <kernel/vm.h>
 #include "vm_priv.h"
+#include "res_group.h"
 
 #include <trace.h>
 #include <assert.h>
@@ -42,6 +43,9 @@ struct pmm_vmm_obj {
     struct list_node page_list;
     size_t chunk_count;
     size_t chunk_size;
+    struct res_group* res_group;
+    struct obj_ref res_group_ref;
+    size_t used_pages;
     struct vm_page *chunk[];
 };
 
@@ -292,6 +296,10 @@ static void pmm_vmm_obj_destroy(struct vmm_obj *obj)
     struct pmm_vmm_obj *pmm_obj = vmm_obj_to_pmm_obj(obj);
 
     pmm_free(&pmm_obj->page_list);
+    if (pmm_obj->res_group) {
+        res_group_release_mem(pmm_obj->res_group, pmm_obj->used_pages);
+        res_group_del_ref(pmm_obj->res_group, &pmm_obj->res_group_ref);
+    }
     free(pmm_obj);
 }
 
@@ -509,7 +517,7 @@ static status_t pmm_alloc_pages_locked(struct list_node *page_list,
     return 0;
 }
 
-status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
+status_t pmm_alloc_from_res_group(struct vmm_obj **objp, struct obj_ref* ref, struct res_group* res_group, uint count,
                    uint32_t flags, uint8_t align_log2)
 {
     status_t ret;
@@ -521,6 +529,16 @@ status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
     DEBUG_ASSERT(count > 0);
 
     LTRACEF("count %u\n", count);
+    if (flags & PMM_ALLOC_FLAG_FROM_RESERVED) {
+        ASSERT(res_group);
+    }
+    if (res_group) {
+        ASSERT(flags & PMM_ALLOC_FLAG_FROM_RESERVED);
+        ret = res_group_take_mem(res_group, count);
+        if (ret) {
+            goto err_take_mem;
+        }
+    }
     if (flags & PMM_ALLOC_FLAG_CONTIGUOUS) {
         /*
          * When allocating a physically contiguous region we don't need a
@@ -533,7 +551,8 @@ status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
         pmm_obj = pmm_alloc_obj(count, PAGE_SIZE);
     }
     if (!pmm_obj) {
-        return ERR_NO_MEMORY;
+        ret = ERR_NO_MEMORY;
+        goto err_alloc_pmm_obj;
     }
 
     mutex_acquire(&lock);
@@ -542,13 +561,28 @@ status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
     mutex_release(&lock);
 
     if (ret) {
-        free(pmm_obj);
-        return ret;
+        goto err_alloc_pages;
+    }
+
+    if (res_group) {
+        obj_ref_init(&pmm_obj->res_group_ref);
+        res_group_add_ref(res_group, &pmm_obj->res_group_ref);
+        pmm_obj->res_group = res_group;
+        pmm_obj->used_pages = count;
     }
 
     vmm_obj_init(&pmm_obj->vmm_obj, ref, &pmm_vmm_obj_ops);
     *objp = &pmm_obj->vmm_obj;
-    return 0;
+    return NO_ERROR;
+
+err_alloc_pages:
+    free(pmm_obj);
+err_alloc_pmm_obj:
+    if (res_group) {
+        res_group_release_mem(res_group, count);
+    }
+err_take_mem:
+    return ret;
 }
 
 size_t pmm_alloc_range(paddr_t address, uint count, struct list_node *list)

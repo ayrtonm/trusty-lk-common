@@ -161,6 +161,28 @@ status_t pmm_add_arena_late(pmm_arena_t *arena);
 #define PMM_ALLOC_FLAG_CONTIGUOUS (1U << 1)
 #define PMM_ALLOC_FLAG_FROM_RESERVED (1U << 2)
 
+struct res_group;
+
+/**
+ * pmm_alloc_from_res_group - Allocate and clear @count pages of physical memory.
+ * @objp:       Pointer to returned vmm_obj (untouched if return code is not 0).
+ * @ref:        Reference to add to *@objp (untouched if return code is not 0).
+ * @res_group:  The resource group to use to track this allocation (if not NULL).
+ * @count:      Number of pages to allocate. Must be greater than 0.
+ * @flags:      Bitmask to optionally restrict allocation to areas that are
+ *              already mapped in the kernel, PMM_ALLOC_FLAG_KMAP (e.g for
+ *              kernel heap and page tables) and/or to allocate a single
+ *              physically contiguous range, PMM_ALLOC_FLAG_CONTIGUOUS.
+ * @align_log2: Alignment needed for contiguous allocation, 0 otherwise.
+ *
+ * Allocate and initialize a vmm_obj that tracks the allocated pages.
+ *
+ * Return: 0 on success, ERR_NO_MEMORY if there is not enough memory free to
+ *         allocate the vmm_obj or the requested page count.
+ */
+status_t pmm_alloc_from_res_group(struct vmm_obj **objp, struct obj_ref* ref, struct res_group* res_group, uint count,
+                   uint32_t flags, uint8_t align_log2);
+
 /**
  * pmm_alloc - Allocate and clear @count pages of physical memory.
  * @objp:       Pointer to returned vmm_obj (untouched if return code is not 0).
@@ -176,9 +198,13 @@ status_t pmm_add_arena_late(pmm_arena_t *arena);
  *
  * Return: 0 on success, ERR_NO_MEMORY if there is not enough memory free to
  *         allocate the vmm_obj or the requested page count.
+ *
+ * Same as `pmm_alloc_from_res_group` above, but with res_group set to `NULL`.
  */
-status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
-                   uint32_t flags, uint8_t align_log2);
+static inline status_t pmm_alloc(struct vmm_obj **objp, struct obj_ref* ref, uint count,
+                   uint32_t flags, uint8_t align_log2) {
+    return pmm_alloc_from_res_group(objp, ref, NULL, count, flags, align_log2);
+}
 
 /* Allocate a specific range of physical pages, adding to the tail of the passed list.
  * The list must be initialized.
