@@ -263,6 +263,9 @@ vm_page_t *paddr_to_vm_page(paddr_t addr);
 /* virtual allocator */
 typedef struct vmm_aspace {
     struct list_node node;
+    /* used for allocations with VMM_FLAG_QUOTA set */
+    struct res_group* quota_res_group;
+    struct obj_ref quota_res_group_ref;
     char name[32];
 
     uint flags;
@@ -465,8 +468,26 @@ status_t vmm_free_region(vmm_aspace_t *aspace, vaddr_t va);
  */
 #define VMM_FLAG_NO_END_GUARD 0x40000
 
-/* allocate a new address space */
-status_t vmm_create_aspace(vmm_aspace_t **aspace, const char *name, uint flags);
+/*
+ * Count this allocation towards the app's memory usage quota.
+ */
+#define VMM_FLAG_QUOTA 0x100000
+
+
+/**
+ * vmm_create_aspace_with_quota() - Allocate a new address space with a size limit.
+ * @aspace: a pointer to set to the new aspace.
+ * @name: the name of the new aspace.
+ * @size: the size limit of the new aspace, 0 meaning no limit.
+ * @flags: the flags of the new aspace.
+ */
+status_t vmm_create_aspace_with_quota(vmm_aspace_t **aspace, const char *name, size_t size, uint flags);
+
+static inline status_t vmm_create_aspace(vmm_aspace_t** _aspace,
+                           const char* name,
+                           uint flags) {
+    return vmm_create_aspace_with_quota(_aspace, name, 0, flags);
+}
 
 /* destroy everything in the address space */
 status_t vmm_free_aspace(vmm_aspace_t *aspace);

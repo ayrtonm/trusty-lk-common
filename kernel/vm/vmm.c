@@ -30,6 +30,7 @@
 #include <trace.h>
 #include <inttypes.h>
 
+#include "res_group.h"
 #include "vm_priv.h"
 
 #define LOCAL_TRACE 0
@@ -988,10 +989,22 @@ static status_t vmm_alloc_pmm(vmm_aspace_t* aspace,
     struct obj_ref vmm_obj_ref = OBJ_REF_INITIAL_VALUE(vmm_obj_ref);
 
     size = round_up(size, PAGE_SIZE);
+    size_t num_pages = size / PAGE_SIZE;
     if (size == 0)
         return ERR_INVALID_ARGS;
 
-    ret = pmm_alloc(&vmm_obj, &vmm_obj_ref, size / PAGE_SIZE,
+    struct res_group* res_group = NULL;
+
+    if (vmm_flags & VMM_FLAG_QUOTA && !aspace->quota_res_group) {
+        LTRACEF("the address space does not support QUOTA allocations!\n");
+        return ERR_INVALID_ARGS;
+    }
+
+    if (vmm_flags & VMM_FLAG_QUOTA) {
+        res_group = aspace->quota_res_group;
+        pmm_alloc_flags |= PMM_ALLOC_FLAG_FROM_RESERVED;
+    }
+    ret = pmm_alloc_from_res_group(&vmm_obj, &vmm_obj_ref, res_group, num_pages,
                     pmm_alloc_flags, pmm_alloc_align_pow2);
     if (ret) {
         LTRACEF("failed to allocate enough pages (asked for %zu)\n",
@@ -1169,8 +1182,9 @@ status_t vmm_free_region(vmm_aspace_t* aspace, vaddr_t vaddr) {
     return vmm_free_region_etc(aspace, vaddr, 1, VMM_FREE_REGION_FLAG_EXPAND);
 }
 
-status_t vmm_create_aspace(vmm_aspace_t** _aspace,
+status_t vmm_create_aspace_with_quota(vmm_aspace_t** _aspace,
                            const char* name,
+                           size_t size,
                            uint flags) {
     status_t err;
 
@@ -1217,6 +1231,16 @@ status_t vmm_create_aspace(vmm_aspace_t** _aspace,
 
     list_clear_node(&aspace->node);
     bst_root_initialize(&aspace->regions);
+    if (size) {
+        uint num_pages = round_up(size, PAGE_SIZE) / PAGE_SIZE;
+        obj_ref_init(&aspace->quota_res_group_ref);
+        struct res_group* new_res_group = res_group_create(num_pages,
+                                              &aspace->quota_res_group_ref);
+        if (!new_res_group) {
+            return ERR_NO_MEMORY;
+        }
+        aspace->quota_res_group = new_res_group;
+    }
 
     mutex_acquire(&vmm_lock);
     list_add_head(&aspace_list, &aspace->node);
@@ -1274,6 +1298,11 @@ status_t vmm_free_aspace(vmm_aspace_t* aspace) {
 
     /* destroy the arch portion of the aspace */
     arch_mmu_destroy_aspace(&aspace->arch_aspace);
+
+    if (aspace->quota_res_group) {
+        res_group_shutdown(aspace->quota_res_group);
+        res_group_del_ref(aspace->quota_res_group, &aspace->quota_res_group_ref);
+    }
 
     /* free the aspace */
     free(aspace);
