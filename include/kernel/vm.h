@@ -94,6 +94,7 @@ typedef struct vm_page {
 } vm_page_t;
 
 #define VM_PAGE_FLAG_NONFREE  (0x1)
+#define VM_PAGE_FLAG_RESERVED (0x2)
 
 /* kernel address space */
 #ifndef KERNEL_ASPACE_BASE
@@ -140,6 +141,8 @@ typedef struct pmm_arena {
     size_t  size;
 
     size_t free_count;
+    /* A subset of free pages that can only be allocated using PMM_ALLOC_FLAG_FROM_RESERVED */
+    size_t reserved_count;
 
     struct vm_page *page_array;
     struct list_node free_list;
@@ -156,6 +159,7 @@ status_t pmm_add_arena_late(pmm_arena_t *arena);
 /* Optional flags passed to pmm_alloc */
 #define PMM_ALLOC_FLAG_KMAP (1U << 0)
 #define PMM_ALLOC_FLAG_CONTIGUOUS (1U << 1)
+#define PMM_ALLOC_FLAG_FROM_RESERVED (1U << 2)
 
 /**
  * pmm_alloc - Allocate and clear @count pages of physical memory.

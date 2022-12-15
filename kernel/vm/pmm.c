@@ -159,6 +159,7 @@ status_t pmm_add_arena(pmm_arena_t *arena)
 
     /* zero out some of the structure */
     arena->free_count = 0;
+    arena->reserved_count = 0;
     list_initialize(&arena->free_list);
 
     if (arena->flags & PMM_ARENA_FLAG_KMAP) {
@@ -216,6 +217,7 @@ status_t pmm_add_arena_late(pmm_arena_t *arena)
 
     /* zero out some of the structure */
     arena->free_count = 0;
+    arena->reserved_count = 0;
     list_initialize(&arena->free_list);
 
     /* allocate an array of pages to back this one */
@@ -367,6 +369,57 @@ retry:
     return ~0UL;
 }
 
+static uint check_available_pages(uint count, bool reserve) {
+    /* walk the arenas in order, allocating as many pages as we can from each */
+    pmm_arena_t *a;
+    list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
+        ASSERT(a->free_count >= a->reserved_count);
+        size_t available_count = a->free_count - a->reserved_count;
+        if (!available_count) {
+            continue;
+        }
+        size_t reserved_count = MIN(count, available_count);
+        count -= reserved_count;
+        if (reserve) {
+            a->reserved_count += reserved_count;
+        }
+        if (!count) {
+            break;
+        }
+    }
+    return count;
+}
+
+status_t pmm_reserve_pages(uint count) {
+    mutex_acquire(&lock);
+    uint remaining_count = check_available_pages(count, false);
+    if (remaining_count) {
+        mutex_release(&lock);
+        return ERR_NO_MEMORY;
+    } else {
+        check_available_pages(count, true);
+    }
+    mutex_release(&lock);
+    return NO_ERROR;
+}
+
+void pmm_unreserve_pages(uint count) {
+    /* walk the arenas in order, unreserving pages */
+    pmm_arena_t *a;
+    mutex_acquire(&lock);
+    list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
+        size_t unreserved_count = MIN(count, a->reserved_count);
+        count -= unreserved_count;
+        a->reserved_count -= unreserved_count;
+        if (!count) {
+            mutex_release(&lock);
+            return;
+        }
+    }
+    mutex_release(&lock);
+    ASSERT(!count);
+}
+
 static status_t pmm_alloc_pages_locked(struct list_node *page_list,
                                        struct vm_page *pages[], uint count,
                                        uint32_t flags, uint8_t align_log2)
@@ -387,6 +440,7 @@ static status_t pmm_alloc_pages_locked(struct list_node *page_list,
     /* walk the arenas in order, allocating as many pages as we can from each */
     pmm_arena_t *a;
     list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
+        ASSERT(a->free_count >= a->reserved_count);
         if (flags & PMM_ALLOC_FLAG_KMAP && !(a->flags & PMM_ARENA_FLAG_KMAP)) {
             /* caller requested mapped pages, but arena a is not mapped */
             continue;
@@ -400,6 +454,16 @@ static status_t pmm_alloc_pages_locked(struct list_node *page_list,
         }
 
         while (allocated < count) {
+            if (flags & PMM_ALLOC_FLAG_FROM_RESERVED) {
+                if (!a->reserved_count) {
+                    LTRACEF("no more reserved pages in the arena!\n");
+                    break;
+                }
+            } else if (a->free_count <= a->reserved_count) {
+                LTRACEF("all pages reserved or used!\n");
+                break;
+            }
+
             vm_page_t *page;
             if (flags & PMM_ALLOC_FLAG_CONTIGUOUS) {
                 DEBUG_ASSERT(free_run_start < a->size / PAGE_SIZE);
@@ -415,6 +479,10 @@ static status_t pmm_alloc_pages_locked(struct list_node *page_list,
 
             clear_page(page);
 
+            if (flags & PMM_ALLOC_FLAG_FROM_RESERVED) {
+                a->reserved_count--;
+                page->flags |= VM_PAGE_FLAG_RESERVED;
+            }
             a->free_count--;
 
             page->flags |= VM_PAGE_FLAG_NONFREE;
@@ -501,6 +569,10 @@ size_t pmm_alloc_range(paddr_t address, uint count, struct list_node *list)
     pmm_arena_t *a;
     list_for_every_entry(&arena_list, a, pmm_arena_t, node) {
         while (allocated < count && ADDRESS_IN_ARENA(address, a)) {
+            if (a->free_count <= a->reserved_count) {
+                LTRACEF("all pages reserved or used!\n");
+                break;
+            }
             size_t index = (address - a->base) / PAGE_SIZE;
 
             DEBUG_ASSERT(index < a->size / PAGE_SIZE);
@@ -551,6 +623,10 @@ static size_t pmm_free_locked(struct list_node *list)
 
                 list_add_head(&a->free_list, &page->node);
                 a->free_count++;
+                if (page->flags & VM_PAGE_FLAG_RESERVED) {
+                    a->reserved_count++;
+                    page->flags &= ~VM_PAGE_FLAG_RESERVED;
+                }
                 count++;
                 break;
             }

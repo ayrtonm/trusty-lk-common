@@ -33,5 +33,14 @@ extern uintptr_t boot_alloc_end;
 void vmm_init_preheap(void);
 void vmm_init(void);
 
+/* Reserve a number of pages, ensuring that backing physical memory exists. Reserved pages
+ * can only be mapped using PMM_ALLOC_FLAG_FROM_RESERVED.
+*/
+status_t pmm_reserve_pages(uint count);
+
+/* Unreserve a number of pages. */
+void pmm_unreserve_pages(uint count);
+
+
 /* private interface between pmm and vm */
 void *pmm_paddr_to_kvaddr(paddr_t pa);
