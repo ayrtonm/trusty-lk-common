@@ -71,7 +71,7 @@ void arch_mmu_map_early(vaddr_t vaddr,
     int ret = arm64_mmu_map_pt(vaddr, vaddr ^ vaddr_top_mask, paddr, size, attr,
                                MMU_KERNEL_TOP_SHIFT, MMU_KERNEL_PAGE_SIZE_SHIFT,
                                arm64_kernel_translation_table,
-                               MMU_ARM64_GLOBAL_ASID);
+                               MMU_ARM64_GLOBAL_ASID, false);
     ASSERT(!ret);
 }
 

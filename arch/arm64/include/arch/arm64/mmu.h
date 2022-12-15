@@ -313,7 +313,7 @@ __BEGIN_CDECLS
 int arm64_mmu_map(vaddr_t vaddr, paddr_t paddr, size_t size, pte_t attrs,
                   vaddr_t vaddr_base, uint top_size_shift,
                   uint top_index_shift, uint page_size_shift,
-                  pte_t *top_page_table, uint asid);
+                  pte_t *top_page_table, uint asid, bool replace);
 int arm64_mmu_unmap(vaddr_t vaddr, size_t size,
                     vaddr_t vaddr_base, uint top_size_shift,
                     uint top_index_shift, uint page_size_shift,

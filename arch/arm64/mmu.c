@@ -435,7 +435,7 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
                             paddr_t paddr_in,
                             size_t size_in, pte_t attrs,
                             uint index_shift, uint page_size_shift,
-                            pte_t *page_table, uint asid)
+                            pte_t *page_table, uint asid, bool replace)
 {
     int ret;
     pte_t *next_page_table;
@@ -476,12 +476,18 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
 
             ret = arm64_mmu_map_pt(vaddr, vaddr_rem, paddr, chunk_size, attrs,
                                    index_shift - (page_size_shift - 3),
-                                   page_size_shift, next_page_table, asid);
+                                   page_size_shift, next_page_table, asid,
+                                   replace);
             if (ret)
                 goto err;
         } else {
             pte = page_table[index];
-            if (pte) {
+            if (!pte && replace) {
+                TRACEF("page table entry does not exist yet, index 0x%lx, 0x%" PRIx64 "\n",
+                       index, pte);
+                goto err;
+            }
+            if (pte && !replace) {
                 TRACEF("page table entry already in use, index 0x%lx, 0x%" PRIx64 "\n",
                        index, pte);
                 goto err;
@@ -495,6 +501,13 @@ static int arm64_mmu_map_pt(vaddr_t vaddr_in, vaddr_t vaddr_rel_in,
 
             LTRACEF("pte %p[0x%lx] = 0x%" PRIx64 "\n", page_table, index, pte);
             page_table[index] = pte;
+            if (replace) {
+                CF;
+                if (asid == MMU_ARM64_GLOBAL_ASID)
+                    ARM64_TLBI(vaae1is, vaddr >> 12);
+                else
+                    ARM64_TLBI(vae1is, vaddr >> 12 | (vaddr_t)asid << 48);
+            }
         }
         size -= chunk_size;
         if (!size) {
@@ -519,7 +532,7 @@ err:
 int arm64_mmu_map(vaddr_t vaddr, paddr_t paddr, size_t size, pte_t attrs,
                   vaddr_t vaddr_base, uint top_size_shift,
                   uint top_index_shift, uint page_size_shift,
-                  pte_t *top_page_table, uint asid)
+                  pte_t *top_page_table, uint asid, bool replace)
 {
     int ret;
     vaddr_t vaddr_rel = vaddr - vaddr_base;
@@ -540,7 +553,8 @@ int arm64_mmu_map(vaddr_t vaddr, paddr_t paddr, size_t size, pte_t attrs,
     }
 
     ret = arm64_mmu_map_pt(vaddr, vaddr_rel, paddr, size, attrs,
-                           top_index_shift, page_size_shift, top_page_table, asid);
+                           top_index_shift, page_size_shift, top_page_table,
+                           asid, replace);
     DSB;
     return ret;
 }
@@ -584,7 +598,8 @@ static void arm64_tlbflush_if_asid_changed(arch_aspace_t *aspace, asid_t asid)
     THREAD_UNLOCK(state);
 }
 
-int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags)
+static int arm64_mmu_map_aspace(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags,
+                 bool replace)
 {
     LTRACEF("vaddr 0x%lx paddr 0x%lx count %zu flags 0x%x\n", vaddr, paddr, count, flags);
 
@@ -621,18 +636,28 @@ int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t cou
                          pte_attr,
                          ~0UL << MMU_KERNEL_SIZE_SHIFT, MMU_KERNEL_SIZE_SHIFT,
                          MMU_KERNEL_TOP_SHIFT, MMU_KERNEL_PAGE_SIZE_SHIFT,
-                         aspace->tt_virt, MMU_ARM64_GLOBAL_ASID);
+                         aspace->tt_virt, MMU_ARM64_GLOBAL_ASID, replace);
     } else {
         asid_t asid = arch_mmu_asid(aspace);
         ret = arm64_mmu_map(vaddr, paddr, count * PAGE_SIZE,
                          pte_attr | MMU_PTE_ATTR_NON_GLOBAL,
                          0, MMU_USER_SIZE_SHIFT,
                          MMU_USER_TOP_SHIFT, MMU_USER_PAGE_SIZE_SHIFT,
-                         aspace->tt_virt, asid);
+                         aspace->tt_virt, asid, replace);
         arm64_tlbflush_if_asid_changed(aspace, asid);
     }
 
     return ret;
+}
+
+int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags)
+{
+    return arm64_mmu_map_aspace(aspace, vaddr, paddr, count, flags, false);
+}
+
+int arch_mmu_map_replace(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags)
+{
+    return arm64_mmu_map_aspace(aspace, vaddr, paddr, count, flags, true);
 }
 
 int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, size_t count)

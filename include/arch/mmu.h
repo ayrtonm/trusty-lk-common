@@ -54,6 +54,7 @@ status_t arch_mmu_destroy_aspace(arch_aspace_t *aspace) __NONNULL((1));
 
 /* routines to map/unmap/query mappings per address space */
 int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags) __NONNULL((1));
+int arch_mmu_map_replace(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t count, uint flags) __NONNULL((1));
 int arch_mmu_unmap(arch_aspace_t *aspace, vaddr_t vaddr, size_t count) __NONNULL((1));
 status_t arch_mmu_query(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t *paddr, uint *flags) __NONNULL((1));
 
