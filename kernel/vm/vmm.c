@@ -43,6 +43,44 @@ vmm_aspace_t _kernel_aspace;
 static void dump_aspace(const vmm_aspace_t* a);
 static void dump_region(const vmm_region_t* r);
 
+static vmm_region_t* vmm_find_region_in_bst(const struct bst_root* region_tree,
+                                     vaddr_t vaddr, size_t size);
+
+static int vmm_res_obj_check_flags(struct vmm_obj *obj, uint *arch_mmu_flags)
+{
+    return 0; /* Allow any flags until RO reserved regions are implemented. */
+}
+
+static inline struct vmm_res_obj* vmm_obj_to_res_vmm_obj(struct vmm_obj *vmm_obj)
+{
+    ASSERT(vmm_obj->ops->check_flags == vmm_res_obj_check_flags);
+    return containerof(vmm_obj, struct vmm_res_obj, vmm_obj);
+}
+
+static int vmm_res_obj_get_page(struct vmm_obj *obj, size_t offset,
+                                paddr_t *paddr, size_t *paddr_size)
+{
+    /* This is not implemented until we map pages on faults. */
+    return ERR_INVALID_ARGS;
+}
+
+static void vmm_res_obj_destroy(struct vmm_obj *obj)
+{
+    struct vmm_res_obj* vmm_res_obj = vmm_obj_to_res_vmm_obj(obj);
+    vmm_region_t* region;
+    bst_for_every_entry_delete(&vmm_res_obj->regions, region, vmm_region_t, node) {
+        vmm_obj_slice_release(&region->obj_slice);
+        free(region);
+    }
+    free(obj);
+}
+
+static struct vmm_obj_ops vmm_res_obj_ops = {
+    .check_flags = vmm_res_obj_check_flags,
+    .get_page = vmm_res_obj_get_page,
+    .destroy = vmm_res_obj_destroy,
+};
+
 void vmm_init_preheap(void) {
     /* initialize the kernel address space */
     strlcpy(_kernel_aspace.name, "kernel", sizeof(_kernel_aspace.name));
@@ -256,6 +294,19 @@ static int vmm_region_cmp(struct bst_node *_a, struct bst_node *_b) {
     return 0;
 }
 
+static status_t add_region_to_bst(struct bst_root* bst, vmm_region_t* r) {
+    if (bst_insert(bst, &r->node, vmm_region_cmp)) {
+        return NO_ERROR;
+    }
+
+    LTRACEF("couldn't find spot\n");
+    vmm_region_t *r_coll  = bst_search_type(bst, r,
+                                            vmm_region_cmp, vmm_region_t, node);
+    LTRACEF("colliding r %p base %p size 0x%zx flags 0x%x\n",
+            r_coll, (void*)r_coll->base, r_coll->obj_slice.size, r_coll->flags);
+    return ERR_NO_MEMORY;
+}
+
 /* add a region to the appropriate spot in the address space list,
  * testing to see if there's a space */
 static status_t add_region_to_aspace(vmm_aspace_t* aspace, vmm_region_t* r) {
@@ -273,16 +324,19 @@ static status_t add_region_to_aspace(vmm_aspace_t* aspace, vmm_region_t* r) {
         return ERR_OUT_OF_RANGE;
     }
 
-    if (bst_insert(&aspace->regions, &r->node, vmm_region_cmp)) {
-        return NO_ERROR;
-    }
+    return add_region_to_bst(&aspace->regions, r);
+}
 
-    LTRACEF("couldn't find spot\n");
-    vmm_region_t *r_coll  = bst_search_type(&aspace->regions, r,
-                                            vmm_region_cmp, vmm_region_t, node);
-    LTRACEF("colliding r %p base 0x%" PRIxVADDR " size 0x%zx flags 0x%x\n",
-            r_coll, r_coll->base, r_coll->obj_slice.size, r_coll->flags);
-    return ERR_NO_MEMORY;
+/* add a region to the appropriate spot in the vmm_res_obj,
+ * testing to see if there's a space */
+static status_t add_region_to_vmm_res_obj(struct vmm_res_obj* vmm_res_obj, vmm_region_t* r) {
+    DEBUG_ASSERT(vmm_res_obj);
+    DEBUG_ASSERT(r);
+
+    LTRACEF("vmm_res_obj %p r %p base 0x%" PRIxVADDR " size 0x%zx flags 0x%x\n",
+            vmm_res_obj, r, r->base, r->obj_slice.size, r->flags);
+
+    return add_region_to_bst(&vmm_res_obj->regions, r);
 }
 
 /*
@@ -677,8 +731,26 @@ static status_t alloc_region(vmm_aspace_t* aspace,
 
     /* if they ask us for a specific spot, put it there */
     if (vmm_flags & VMM_FLAG_VALLOC_SPECIFIC) {
-        /* stick it in the list, checking to see if it fits */
-        status_t ret = add_region_to_aspace(aspace, r);
+        status_t ret;
+        vmm_region_t *reserved_region = vmm_find_region_in_bst(&aspace->regions, vaddr, size);
+        if (reserved_region) {
+            if (reserved_region->flags & VMM_FLAG_NO_PHYSICAL) {
+                if (!is_range_inside_region(reserved_region, vaddr, size)) {
+                    return ERR_INVALID_ARGS;
+                }
+                /*
+                 * Allocations from a NO_PHYSICAL region are always specific.
+                 * The caller is responsible for managing guard pages.
+                 */
+                r->flags |= VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD;
+                ret = add_region_to_vmm_res_obj(vmm_obj_to_res_vmm_obj(reserved_region->obj_slice.obj), r);
+            } else {
+                ret = ERR_NO_MEMORY;
+            }
+        } else {
+            /* stick it in the list, checking to see if it fits */
+            ret = add_region_to_aspace(aspace, r);
+        }
         if (ret < 0) {
             /* didn't fit */
             free(r);
@@ -877,9 +949,12 @@ status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
     }
 
     vmm_obj_slice_bind_locked(&r->obj_slice, vmm_obj, offset, size);
-    ret = vmm_map_obj_locked(aspace, r, arch_mmu_flags);
-    if (ret) {
-        goto err_map_obj;
+
+    if (!(vmm_flags & VMM_FLAG_NO_PHYSICAL)) {
+        ret = vmm_map_obj_locked(aspace, r, arch_mmu_flags);
+        if (ret) {
+            goto err_map_obj;
+        }
     }
 
     /* return the vaddr */
@@ -987,6 +1062,7 @@ static status_t vmm_alloc_pmm(vmm_aspace_t* aspace,
     status_t ret;
     struct vmm_obj *vmm_obj;
     struct obj_ref vmm_obj_ref = OBJ_REF_INITIAL_VALUE(vmm_obj_ref);
+    ASSERT(!(vmm_flags & VMM_FLAG_NO_PHYSICAL));
 
     size = round_up(size, PAGE_SIZE);
     size_t num_pages = size / PAGE_SIZE;
@@ -1035,18 +1111,30 @@ status_t vmm_alloc(vmm_aspace_t* aspace,
                    uint8_t align_pow2,
                    uint vmm_flags,
                    uint arch_mmu_flags) {
+    /* reserve a region without mapping physical pages */
+    if (vmm_flags & VMM_FLAG_NO_PHYSICAL) {
+        return vmm_alloc_no_physical(aspace, name, size, ptr, align_pow2,
+                                     vmm_flags, arch_mmu_flags);
+    }
+
+    /* allocate physical pages */
     return vmm_alloc_pmm(aspace, name, size, ptr, align_pow2, vmm_flags,
                          arch_mmu_flags, 0, 0);
 }
 
 static vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
                                      vaddr_t vaddr) {
-    vmm_region_t* r;
-
     DEBUG_ASSERT(aspace);
 
     if (!aspace)
         return NULL;
+
+    return vmm_find_region_in_bst(&aspace->regions, vaddr, PAGE_SIZE);
+}
+
+static vmm_region_t* vmm_find_region_in_bst(const struct bst_root* region_tree,
+                                     vaddr_t vaddr, size_t size) {
+    vmm_region_t* r;
 
     vaddr = round_down(vaddr, PAGE_SIZE);
 
@@ -1054,8 +1142,8 @@ static vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
     vmm_region_t r_ref;
     r_ref.flags = VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD;
     r_ref.base = vaddr;
-    r_ref.obj_slice.size = PAGE_SIZE;
-    r = bst_search_type(&aspace->regions, &r_ref, vmm_region_cmp, vmm_region_t,
+    r_ref.obj_slice.size = size ? size : PAGE_SIZE;
+    r = bst_search_type(region_tree, &r_ref, vmm_region_cmp, vmm_region_t,
                         node);
     if (!r) {
         return NULL;
@@ -1066,6 +1154,37 @@ static vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
         return NULL;
     }
     return r;
+}
+
+status_t vmm_alloc_no_physical(vmm_aspace_t* aspace,
+                   const char* name,
+                   size_t size,
+                   void** ptr,
+                   uint8_t align_pow2,
+                   uint vmm_flags,
+                   uint arch_mmu_flags) {
+    struct vmm_res_obj *vmm_res_obj;
+    if (arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO) {
+        LTRACEF("a NO_PHYSICAL allocation cannot be read-only\n");
+        return ERR_INVALID_ARGS;
+    }
+    size = round_up(size, PAGE_SIZE);
+    if (size == 0)
+        return ERR_INVALID_ARGS;
+
+    struct obj_ref vmm_obj_ref = OBJ_REF_INITIAL_VALUE(vmm_obj_ref);
+    vmm_res_obj = calloc(1, sizeof(*vmm_res_obj));
+    if (!vmm_res_obj) {
+        return ERR_NO_MEMORY;
+    }
+    vmm_obj_init(&vmm_res_obj->vmm_obj, &vmm_obj_ref, &vmm_res_obj_ops);
+    bst_root_initialize(&vmm_res_obj->regions);
+
+
+    status_t ret = vmm_alloc_obj(aspace, name, &vmm_res_obj->vmm_obj, 0, size, ptr, align_pow2,
+                                 vmm_flags | VMM_FLAG_NO_PHYSICAL, arch_mmu_flags);
+    vmm_obj_del_ref(&vmm_res_obj->vmm_obj, &vmm_obj_ref);
+    return ret;
 }
 
 status_t vmm_get_obj(const vmm_aspace_t *aspace, vaddr_t vaddr, size_t size,
@@ -1084,6 +1203,17 @@ status_t vmm_get_obj(const vmm_aspace_t *aspace, vaddr_t vaddr, size_t size,
     if (!region) {
         ret = ERR_NOT_FOUND;
         goto out;
+    }
+
+
+    if (region->flags & VMM_FLAG_NO_PHYSICAL) {
+        /* this region doesn't map any pages, look inside instead */
+        struct vmm_res_obj* obj = vmm_obj_to_res_vmm_obj(region->obj_slice.obj);
+        region = vmm_find_region_in_bst(&obj->regions, vaddr, size);
+        if (!region) {
+            ret = ERR_NOT_FOUND;
+            goto out;
+        }
     }
 
     /* vmm_find_region already checked that vaddr is in region */

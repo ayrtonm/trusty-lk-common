@@ -30,6 +30,16 @@
 extern uintptr_t boot_alloc_start;
 extern uintptr_t boot_alloc_end;
 
+/**
+ * struct vmm_res_obj - Object reserving address space with no physical backing.
+ * @vmm_obj: The underlying vmm object.
+ * @regions: The regions mapped inside this object.
+ */
+struct vmm_res_obj {
+    struct vmm_obj vmm_obj;
+    struct bst_root regions;
+};
+
 void vmm_init_preheap(void);
 void vmm_init(void);
 

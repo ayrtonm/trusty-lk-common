@@ -416,6 +416,8 @@ static inline status_t vmm_alloc_physical(vmm_aspace_t *aspace, const char *name
 /* allocate a region of memory backed by newly allocated contiguous physical memory  */
 status_t vmm_alloc_contiguous(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
 
+/* allocate a region of memory, but do not back it by physical memory  */
+status_t vmm_alloc_no_physical(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
 
 /* allocate a region of memory backed by newly allocated physical memory */
 status_t vmm_alloc(vmm_aspace_t *aspace, const char *name, size_t size, void **ptr, uint8_t align_log2, uint vmm_flags, uint arch_mmu_flags);
@@ -467,6 +469,11 @@ status_t vmm_free_region(vmm_aspace_t *aspace, vaddr_t va);
  * VMM_FLAG_VALLOC_SPECIFIC if two regions need to be created with no gap.
  */
 #define VMM_FLAG_NO_END_GUARD 0x40000
+
+/*
+ * Do not allocate physical memory, only reserve the address range.
+ */
+#define VMM_FLAG_NO_PHYSICAL 0x80000
 
 /*
  * Count this allocation towards the app's memory usage quota.
