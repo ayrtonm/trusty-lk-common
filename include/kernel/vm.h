@@ -153,8 +153,24 @@ typedef struct pmm_arena {
 /* Add a pre-filled memory arena to the physical allocator. */
 status_t pmm_add_arena(pmm_arena_t *arena);
 
+/**
+ * pmm_add_arena_late_etc() - Add memory arena
+ * @arena: pointer to pre-filled &struct arena
+ * @reserve_at_beg: number of bytes that needs to be reserved
+ *  (marked as in use) at the beginning of arena memory region
+ * @reserve_at_end: number of bytes that needs to be reserved
+ * (marked as in use) at the end of arena memory region
+ *
+ * Return: 0 on success, negative err otherwise
+ */
+status_t pmm_add_arena_late_etc(pmm_arena_t *arena,
+                                size_t reserve_at_beg,
+                                size_t reserve_at_end);
+
 /* Add a pre-filled arena during late (post vm) stage of boot */
-status_t pmm_add_arena_late(pmm_arena_t *arena);
+static status_t pmm_add_arena_late(pmm_arena_t *arena) {
+    return pmm_add_arena_late_etc(arena, 0, 0);
+}
 
 /* Optional flags passed to pmm_alloc */
 #define PMM_ALLOC_FLAG_KMAP (1U << 0)

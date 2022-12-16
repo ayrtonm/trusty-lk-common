@@ -132,8 +132,12 @@ static void insert_arena(pmm_arena_t *arena)
 }
 
 static void init_page_array(pmm_arena_t *arena, size_t page_count,
-                            size_t reserved)
+                            size_t reserved_at_start,
+                            size_t reserved_at_end)
 {
+    ASSERT(reserved_at_start < page_count);
+    ASSERT(reserved_at_end <= page_count);
+
     /* clear page array */
     memset(arena->page_array, 0, page_count * sizeof(vm_page_t));
 
@@ -141,7 +145,7 @@ static void init_page_array(pmm_arena_t *arena, size_t page_count,
     for (size_t i = 0; i < page_count; i++) {
         vm_page_t *p = &arena->page_array[i];
 
-        if (i < reserved) {
+        if (i < reserved_at_start || i >= (page_count - reserved_at_end)) {
             p->flags |= VM_PAGE_FLAG_NONFREE;
             continue;
         }
@@ -179,7 +183,7 @@ status_t pmm_add_arena(pmm_arena_t *arena)
     arena->page_array = boot_alloc_mem(page_count * sizeof(vm_page_t));
 
     /* initialize it */
-    init_page_array(arena, page_count, 0);
+    init_page_array(arena, page_count, 0, 0);
 
     /* Add arena to tracking list */
     insert_arena(arena);
@@ -204,11 +208,12 @@ void *pmm_paddr_to_kvaddr(paddr_t pa) {
     return va;
 }
 
-status_t pmm_add_arena_late(pmm_arena_t *arena)
+status_t pmm_add_arena_late_etc(pmm_arena_t *arena,
+                                size_t reserve_at_start,
+                                size_t reserve_at_end)
 {
     void *va;
     size_t page_count;
-    size_t pages_reserved;
     spin_lock_saved_state_t state;
 
     LTRACEF("arena %p name '%s' base 0x%" PRIxPADDR " size 0x%zx\n",
@@ -227,9 +232,11 @@ status_t pmm_add_arena_late(pmm_arena_t *arena)
     /* allocate an array of pages to back this one */
     page_count = arena->size / PAGE_SIZE;
 
-    /* reserve pages for page_array */
-    pages_reserved =
-        round_up(page_count * sizeof(vm_page_t), PAGE_SIZE) / PAGE_SIZE;
+    /* check if we have enough space to reserve everything */
+    if (round_up(reserve_at_start + page_count * sizeof(vm_page_t), PAGE_SIZE) +
+        round_up(reserve_at_end, PAGE_SIZE) > arena->size) {
+        return ERR_INVALID_ARGS;
+    }
 
     if (arena->flags & PMM_ARENA_FLAG_KMAP) {
         /* arena is already kmapped */
@@ -253,10 +260,15 @@ status_t pmm_add_arena_late(pmm_arena_t *arena)
     /* set kmap address */
     arena->kvaddr = (vaddr_t)va;
 
-    /* place page tracking structure at base of arena */
-    arena->page_array = va;
+    /* place page tracking structure at base of arena (past reserve_at_start) */
+    arena->page_array = va + reserve_at_start;
 
-    init_page_array(arena, page_count, pages_reserved);
+    /* reserve memory for page_array */
+    reserve_at_start += page_count * sizeof(vm_page_t);
+
+    init_page_array(arena, page_count,
+                    round_up(reserve_at_start, PAGE_SIZE) / PAGE_SIZE,
+                    round_up(reserve_at_end, PAGE_SIZE) / PAGE_SIZE);
 
     /* Insert arena into tracking structure */
     mutex_acquire(&lock);
