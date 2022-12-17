@@ -54,3 +54,23 @@ void pmm_unreserve_pages(uint count);
 
 /* private interface between pmm and vm */
 void *pmm_paddr_to_kvaddr(paddr_t pa);
+
+/* Check whether the given vmm_obj is a pmm whose memory
+ * needs to be cleared before mapping.
+ */
+bool pmm_vmm_is_pmm_that_needs_clear(struct vmm_obj* vmm);
+
+/* Check whether the given vmm_obj is a pmm whose memory
+ * is allowed to be mapped tagged.
+ */
+bool pmm_vmm_is_pmm_that_allows_tagged(struct vmm_obj* vmm);
+
+/* Declare that the memory associated with this vmm_obj
+ * (which must be a pmm_obj) was cleared
+ */
+void pmm_set_cleared(struct vmm_obj* vmm, size_t offset, size_t size);
+
+/* Declare that the memory associated with this vmm_obj
+ * (which must be a pmm_obj) has been mapped as tagged
+ */
+void pmm_set_tagged(struct vmm_obj* vmm);

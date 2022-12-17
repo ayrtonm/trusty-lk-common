@@ -66,6 +66,12 @@ void arch_sync_cache_range(addr_t start, size_t len);
 
 void arch_idle(void);
 
+/* Zero the specified memory as well as the corresponding tags */
+void arch_clear_pages_and_tags(vaddr_t addr, size_t size);
+
+/* Return true if tagging is enabled */
+bool arch_tagging_enabled(void);
+
 __END_CDECLS
 
 #endif // !ASSEMBLY

@@ -787,7 +787,7 @@ static status_t alloc_region(vmm_aspace_t* aspace,
 }
 
 static status_t vmm_map_obj_locked(vmm_aspace_t* aspace, vmm_region_t* r,
-                                   uint arch_mmu_flags) {
+                                   uint arch_mmu_flags, bool replace) {
     /* map all of the pages */
     /* XXX use smarter algorithm that tries to build runs */
     status_t err;
@@ -813,8 +813,17 @@ static status_t vmm_map_obj_locked(vmm_aspace_t* aspace, vmm_region_t* r,
         }
         DEBUG_ASSERT(IS_PAGE_ALIGNED(va));
         DEBUG_ASSERT(va <= r->base + (r->obj_slice.size - 1));
-        err = arch_mmu_map(&aspace->arch_aspace, va, pa, pa_size / PAGE_SIZE,
-                           arch_mmu_flags);
+        if (replace) {
+            err = arch_mmu_map_replace(&aspace->arch_aspace, va, pa,
+                                       pa_size / PAGE_SIZE, arch_mmu_flags);
+            if (err) {
+                TRACEF("replace mapping failed, unmapping existing mapping\n");
+                off = r->obj_slice.size;
+            }
+        } else {
+            err = arch_mmu_map(&aspace->arch_aspace, va, pa,
+                               pa_size / PAGE_SIZE, arch_mmu_flags);
+        }
         if (err) {
             goto err_map_loop;
         }
@@ -896,6 +905,14 @@ bool vmm_obj_has_only_ref(struct vmm_obj* obj, struct obj_ref* ref) {
     return has_only_ref;
 }
 
+__WEAK void arch_clear_pages_and_tags(vaddr_t addr, size_t size) {
+    panic("weak arch_clear_pages_and_tags called");
+}
+
+__WEAK bool arch_tagging_enabled(void) {
+    return false;
+}
+
 status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
                        struct vmm_obj* vmm_obj, size_t offset, size_t size,
                        void** ptr, uint8_t align_log2, uint vmm_flags,
@@ -951,9 +968,41 @@ status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
     vmm_obj_slice_bind_locked(&r->obj_slice, vmm_obj, offset, size);
 
     if (!(vmm_flags & VMM_FLAG_NO_PHYSICAL)) {
-        ret = vmm_map_obj_locked(aspace, r, arch_mmu_flags);
+        /*
+         * For tagged memory, pmm_alloc won't have zeroed the pages, so do that
+         * here along with the tags
+         */
+        bool tagged = arch_mmu_flags & ARCH_MMU_FLAG_TAGGED;
+        bool allow_tagged = pmm_vmm_is_pmm_that_allows_tagged(vmm_obj);
+        bool needs_clear = pmm_vmm_is_pmm_that_needs_clear(vmm_obj);
+        if (tagged && !allow_tagged) {
+            TRACEF("obj not allowed to be tagged\n");
+            ret = ERR_INVALID_ARGS;
+            goto err_map_obj;
+        }
+        if (needs_clear) {
+            uint tmpflags = ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+            if (allow_tagged) {
+               tmpflags |= ARCH_MMU_FLAG_TAGGED;
+            }
+            ret = vmm_map_obj_locked(aspace, r, tmpflags, false);
+            if (ret) {
+                goto err_map_obj;
+            }
+            if (allow_tagged) {
+                arch_clear_pages_and_tags(r->base, size);
+            } else  {
+                memset((void*)r->base, 0, size);
+            };
+            pmm_set_cleared(vmm_obj, offset, size);
+        }
+        ret = vmm_map_obj_locked(aspace, r, arch_mmu_flags, needs_clear);
         if (ret) {
             goto err_map_obj;
+        }
+        if (tagged) {
+            /* only allow mapping as tagged once */
+            pmm_set_tagged(vmm_obj);
         }
     }
 
@@ -1068,6 +1117,18 @@ static status_t vmm_alloc_pmm(vmm_aspace_t* aspace,
     size_t num_pages = size / PAGE_SIZE;
     if (size == 0)
         return ERR_INVALID_ARGS;
+
+    if (arch_mmu_flags & ARCH_MMU_FLAG_TAGGED) {
+        if (!arch_tagging_enabled()) {
+            return ERR_INVALID_ARGS;
+        }
+        /*
+         * Indicate to pmm that memory doesn't need to be cleared
+         * because we'll do that later along with the tags
+         */
+        pmm_alloc_flags |=
+            (PMM_ALLOC_FLAG_NO_CLEAR | PMM_ALLOC_FLAG_ALLOW_TAGGED);
+    }
 
     struct res_group* res_group = NULL;
 

@@ -176,6 +176,8 @@ static status_t pmm_add_arena_late(pmm_arena_t *arena) {
 #define PMM_ALLOC_FLAG_KMAP (1U << 0)
 #define PMM_ALLOC_FLAG_CONTIGUOUS (1U << 1)
 #define PMM_ALLOC_FLAG_FROM_RESERVED (1U << 2)
+#define PMM_ALLOC_FLAG_NO_CLEAR (1U << 3)
+#define PMM_ALLOC_FLAG_ALLOW_TAGGED (1U << 4)
 
 struct res_group;
 

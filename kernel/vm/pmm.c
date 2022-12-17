@@ -46,8 +46,12 @@ struct pmm_vmm_obj {
     struct res_group* res_group;
     struct obj_ref res_group_ref;
     size_t used_pages;
+    uint32_t flags;
     struct vm_page *chunk[];
 };
+
+#define PMM_OBJ_FLAG_NEEDS_CLEAR (1)
+#define PMM_OBJ_FLAG_ALLOW_TAGGED (2)
 
 static inline struct pmm_vmm_obj* vmm_obj_to_pmm_obj(struct vmm_obj *vmm_obj)
 {
@@ -497,7 +501,13 @@ static status_t pmm_alloc_pages_locked(struct list_node *page_list,
                     break;
             }
 
-            clear_page(page);
+            /*
+             * Don't clear tagged pages here, as the page and tags will be
+             * cleared later.
+             */
+            if (!(flags & PMM_ALLOC_FLAG_NO_CLEAR)) {
+                clear_page(page);
+            }
 
             if (flags & PMM_ALLOC_FLAG_FROM_RESERVED) {
                 a->reserved_count--;
@@ -570,6 +580,13 @@ status_t pmm_alloc_from_res_group(struct vmm_obj **objp, struct obj_ref* ref, st
     mutex_acquire(&lock);
     ret = pmm_alloc_pages_locked(&pmm_obj->page_list, pmm_obj->chunk, count,
                                  flags, align_log2);
+    if (flags & PMM_ALLOC_FLAG_NO_CLEAR) {
+        pmm_obj->flags |= PMM_OBJ_FLAG_NEEDS_CLEAR;
+    }
+    if (flags & PMM_ALLOC_FLAG_ALLOW_TAGGED) {
+        ASSERT(arch_tagging_enabled());
+        pmm_obj->flags |= PMM_OBJ_FLAG_ALLOW_TAGGED;
+    }
     mutex_release(&lock);
 
     if (ret) {
@@ -595,6 +612,44 @@ err_alloc_pmm_obj:
     }
 err_take_mem:
     return ret;
+}
+
+static bool pmm_vmm_is_pmm_obj(struct vmm_obj* vmm) {
+    return (vmm && vmm->ops == &pmm_vmm_obj_ops);
+}
+
+bool pmm_vmm_is_pmm_that_needs_clear(struct vmm_obj* vmm) {
+    if (pmm_vmm_is_pmm_obj(vmm)) {
+        struct pmm_vmm_obj* pmm = vmm_obj_to_pmm_obj(vmm);
+        return pmm->flags & PMM_OBJ_FLAG_NEEDS_CLEAR;
+    }
+    return false;
+}
+
+bool pmm_vmm_is_pmm_that_allows_tagged(struct vmm_obj* vmm) {
+    if (pmm_vmm_is_pmm_obj(vmm)) {
+        struct pmm_vmm_obj* pmm = vmm_obj_to_pmm_obj(vmm);
+        return pmm->flags & PMM_OBJ_FLAG_ALLOW_TAGGED;
+    }
+    return false;
+}
+
+void pmm_set_cleared(struct vmm_obj* vmm, size_t offset, size_t size) {
+    ASSERT(pmm_vmm_is_pmm_that_needs_clear(vmm));
+    struct pmm_vmm_obj* pmm = vmm_obj_to_pmm_obj(vmm);
+    /*
+     * check that the caller cleared the entire object, since
+     * we only keep track of the cleared state at the object level
+     */
+    ASSERT(offset == 0);
+    ASSERT(size == pmm->chunk_count * pmm->chunk_size);
+    pmm->flags &= ~PMM_OBJ_FLAG_NEEDS_CLEAR;
+}
+
+void pmm_set_tagged(struct vmm_obj* vmm) {
+    ASSERT(pmm_vmm_is_pmm_that_allows_tagged(vmm));
+    struct pmm_vmm_obj* pmm = vmm_obj_to_pmm_obj(vmm);
+    pmm->flags &= ~PMM_OBJ_FLAG_ALLOW_TAGGED;
 }
 
 size_t pmm_alloc_range(paddr_t address, uint count, struct list_node *list)
