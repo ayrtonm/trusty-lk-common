@@ -95,6 +95,14 @@ void platform_idle(void);
  */
 void platform_early_halt(void) __NO_RETURN;
 
+/* called by LK thread_resched() and other functions in 'thread.c'.
+ * The purpose of this API is to set info in shared memory whenever the
+ * priority on a CPU changes. Such changes can occur when the current
+ * thread priority changes, or the scheduler switches to another
+ * thread, or when an IPI is sent to another CPU.
+ */
+void platform_cpu_priority_set(uint32_t cpu_nr, uint32_t priority);
+
 __END_CDECLS;
 
 #endif

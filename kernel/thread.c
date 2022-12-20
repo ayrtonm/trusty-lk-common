@@ -109,6 +109,11 @@ static timer_t preempt_timer[SMP_MAX_CPUS];
 #define US2NS(us) ((us) * 1000ULL)
 #define MS2NS(ms) (US2NS(ms) * 1000ULL)
 
+__WEAK void platform_cpu_priority_set(uint32_t cpu, uint32_t priority) {
+    (void)cpu;
+    (void)priority;
+}
+
 /* run queue manipulation */
 static void insert_in_run_queue_head(thread_t *t)
 {
@@ -425,6 +430,7 @@ static mp_cpu_mask_t thread_get_mp_reschedule_target(thread_t *current_thread, t
      * thread can run on another CPU instead.
      */
     cpu_priority[target_cpu] = t->priority;
+    platform_cpu_priority_set(target_cpu, t->priority);
 
     return 1UL << target_cpu;
 #else
@@ -843,6 +849,7 @@ static void thread_cond_mp_reschedule(thread_t *current_thread, const char *call
             current_thread->priority, current_thread->name);
 #endif
     cpu_priority[best_cpu] = t->priority;
+    platform_cpu_priority_set(best_cpu, t->priority);
     mp_reschedule(1UL << best_cpu, 0);
 #endif
 }
@@ -910,6 +917,7 @@ static void thread_resched(void) {
                 __func__, cpu, cpu_priority[cpu], newthread->priority);
 #endif
             cpu_priority[cpu] = newthread->priority;
+            platform_cpu_priority_set(cpu, newthread->priority);
         }
         return;
     }
@@ -978,6 +986,7 @@ static void thread_resched(void) {
 
     /* do the switch */
     cpu_priority[cpu] = newthread->priority;
+    platform_cpu_priority_set(cpu, newthread->priority);
     set_current_thread(newthread);
 
 #if DEBUG_THREAD_CONTEXT_SWITCH
@@ -1277,6 +1286,7 @@ void thread_init_early(void)
     wait_queue_init(&t->retcode_wait_queue);
     list_add_head(&thread_list, &t->thread_list_node);
     cpu_priority[0] = t->priority;
+    platform_cpu_priority_set(0, t->priority);
     set_current_thread(t);
     thread_init_cookie(t);
 }
@@ -1571,6 +1581,7 @@ void thread_secondary_cpu_init_early(void)
 
     list_add_head(&thread_list, &t->thread_list_node);
     cpu_priority[cpu] = t->priority;
+    platform_cpu_priority_set(cpu, t->priority);
     set_current_thread(t);
 
     THREAD_UNLOCK(state);
