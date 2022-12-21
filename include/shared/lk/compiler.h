@@ -59,7 +59,7 @@
     __asm__ (".section " section ", \"a\"; .balign " #align "; .globl "#symname);  \
     __asm__ (""#symname ":\n.incbin \"" filename "\"");                            \
     __asm__ (".balign 1; "#symname "_end:");                                       \
-    __asm__ (".balign " #align "; .globl "#sizename);                              \
+    __asm__ (".balign 4; .globl "#sizename);                                       \
     __asm__ (""#sizename ": .long "#symname "_end - "#symname);                    \
     __asm__ (".previous");                                                         \
     extern unsigned char symname[];                                                \
