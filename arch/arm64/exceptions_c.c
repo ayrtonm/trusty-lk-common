@@ -494,6 +494,16 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             print_fault_code(dfsc, far);
             break;
         }
+        case 0b001101: { /* branch target exception */
+#if TEST_BUILD
+            if (check_fault_handler_table(iframe)) {
+                return;
+            }
+#endif
+            printf("branch target exception: BTYPE=0x%lx, "
+                   "PC at 0x%" PRIx64 "(0x%lx)\n", BITS(iss, 1, 0), iframe->elr, display_pc);
+            break;
+        }
         case 0b111100: {
             printf("BRK #0x%04lx instruction: PC at 0x%" PRIx64 "(0x%lx)\n",
                    BITS_SHIFT(iss, 15, 0), iframe->elr, display_pc);
