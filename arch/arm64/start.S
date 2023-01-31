@@ -21,6 +21,7 @@ cpuid                   .req x19
 page_table0             .req x20
 page_table1             .req x21
 size                    .req x22
+supports_mte            .req x23
 
 .section .text.boot
 FUNCTION(_start)
@@ -33,6 +34,10 @@ arm_reset:
     msr     vbar_el1, tmp
     isb
 
+    mrs     tmp2, id_aa64pfr1_el1
+    tst     tmp2, #0xe00
+    cset    supports_mte, ne
+
 #if WITH_KERNEL_VM
     /* enable caches so atomics and spinlocks work */
     mrs     tmp, sctlr_el1
@@ -40,10 +45,12 @@ arm_reset:
     orr     tmp, tmp, #(1<<2)  /* Enable dcache/ucache */
     orr     tmp, tmp, #(1<<3)  /* Enable Stack Alignment Check EL1 */
     orr     tmp, tmp, #(1<<4)  /* Enable Stack Alignment Check EL0 */
+    cbz     supports_mte, .Ldont_set_mte_flags
     orr     tmp, tmp, #(1<<43) /* Allocation Tag Access in EL1 */
     orr     tmp, tmp, #(1<<42) /* Allocation Tag Access in EL0 */
-    orr     tmp, tmp, #(1<<40) /* Tag check faults in EL1 are synchronous */
+    bic     tmp, tmp, #(1<<40) /* No tag check faults in EL1 */
     orr     tmp, tmp, #(1<<38) /* Tag check faults in EL0 are synchronous */
+.Ldont_set_mte_flags:
     bic     tmp, tmp, #(1<<1)  /* Disable Alignment Checking for EL1 EL0 */
     msr     sctlr_el1, tmp
 
@@ -121,6 +128,9 @@ arm_reset:
     b.hi   .Lset_tt_trampoline_done
 
     ldr     tmp2, =MMU_PTE_IDENT_FLAGS
+    cbz     supports_mte, .Luse_untagged_mapping
+    ldr     tmp2, =MMU_PTE_IDENT_FLAGS_TAGGED
+.Luse_untagged_mapping:
     add     tmp2, tmp2, tmp, lsl #MMU_IDENT_TOP_SHIFT  /* tmp2 = pt entry */
     str     tmp2, [page_table0, tmp, lsl #3]     /* tt_trampoline[paddr index] = pt entry */
     add     tmp, tmp, #1
@@ -223,6 +233,28 @@ arm_reset:
     adrl    ssp, __shadow_stack
 #endif
 
+    /* Try to write and read tags to test if EL3 configured tag space access */
+    cbz     supports_mte, .Lno_tagging_feature
+
+    /*
+     * The stack is set up but unused at this point, so we can use
+     * it as a convenient address for tagging.
+     */
+    mov     tmp, sp
+    sub     tmp, tmp, #16
+    mov     tmp2, #3
+    bfi     tmp, tmp2, #56, #4
+    mov     tmp2, tmp
+.arch_extension memtag
+    stg     tmp, [tmp]
+    ldg     tmp, [tmp]
+    cmp     tmp, tmp2
+    cset    tmp2, eq
+    adrl    tmp, arm64_mte_enabled
+    strb    wtmp2, [tmp]
+
+.Lno_tagging_feature:
+
     /* Save the arguments */
     push    x2, x3
     push    x0, x1
@@ -296,10 +328,19 @@ arm_reset:
     msr     tcr_el1, tmp
     isb
 
-
     /* Invalidate TLB */
     tlbi    vmalle1
     isb
+
+    /* We're no longer using the tagged identity map at this point, so
+     * enable synchronous tag check faults in EL1 to catch any code
+     * improperly using a tagged mapping
+     */
+    cbz     supports_mte, .Ldont_set_mte_flags_2
+    mrs     tmp, sctlr_el1
+    orr     tmp, tmp, #(1<<40)
+    msr     sctlr_el1, tmp
+.Ldont_set_mte_flags_2:
 
 #if WITH_SMP
     cbnz    cpuid, .Lsecondary_boot

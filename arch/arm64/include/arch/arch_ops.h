@@ -287,5 +287,19 @@ static inline uint arch_curr_cpu_num(void)
 }
 #endif
 
+/**
+ * arm64_tagging_supported - indicate if the CPU supports the tagging feature
+ *
+ * This function returns true if the CPU supports memory tagging.
+ * Note that even when the CPU supports memory tagging, reading and writing
+ * memory tags in Trusty may be disabled, e.g. because tag access or tag space
+ * was not enabled by the bootloader.
+ * Use arch_tagging_enabled() to determine if memory tagging is actually
+ * functional.
+ *
+ * Return: true if the CPU supports the tagging feature, false if not
+ */
+bool arm64_tagging_supported(void);
+
 #endif // ASSEMBLY
 

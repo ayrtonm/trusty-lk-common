@@ -102,12 +102,15 @@ void arch_clear_pages_and_tags(vaddr_t addr, size_t size)
     storeTags(addr, addr + size);
 }
 
-/* a weak implementation for builds that don't use the trusty lib */
-__WEAK bool trusty_mte_enabled(void) {
-    return false;
-}
+bool arm64_mte_enabled;
 
 bool arch_tagging_enabled()
 {
-    return trusty_mte_enabled();
+    return arm64_mte_enabled;
+}
+
+bool arm64_tagging_supported()
+{
+    uint64_t v = ARM64_READ_SYSREG(id_aa64pfr1_el1);
+    return ((v & 0xf00) >= 0x200);
 }

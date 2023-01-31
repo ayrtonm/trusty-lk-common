@@ -69,7 +69,11 @@ void arch_idle(void);
 /* Zero the specified memory as well as the corresponding tags */
 void arch_clear_pages_and_tags(vaddr_t addr, size_t size);
 
-/* Return true if tagging is enabled */
+/**
+ * arch_tagging_enabled - indicate if memory tags can be read and written
+ *
+ * Return: true if tags can be written and read, false if not
+ */
 bool arch_tagging_enabled(void);
 
 __END_CDECLS

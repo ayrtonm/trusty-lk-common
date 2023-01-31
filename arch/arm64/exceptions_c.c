@@ -32,7 +32,6 @@
 #include <arch/pan.h>
 #include <arch/safecopy.h>
 #include <kernel/vm.h>
-#include <lib/mte.h>
 #include <lib/trusty/trusty_app.h>
 #include <inttypes.h>
 
@@ -394,7 +393,7 @@ static void print_fault_code(uint32_t fsc, uint64_t far) {
 
 static void enable_tag_checks(void)
 {
-    if (trusty_mte_enabled()) {
+    if (arm64_tagging_supported()) {
         /* Clearing Tag Check Override enables tag checking */
         __asm__ volatile(".arch_extension memtag\n"
                          "msr tco, #0");
@@ -403,7 +402,7 @@ static void enable_tag_checks(void)
 
 static void disable_tag_checks(void)
 {
-    if (trusty_mte_enabled()) {
+    if (arm64_tagging_supported()) {
         /* Setting Tag Check Override disables tag checking */
         __asm__ volatile(".arch_extension memtag\n"
                          "msr tco, #1");
