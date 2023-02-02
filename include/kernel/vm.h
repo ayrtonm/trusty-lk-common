@@ -297,6 +297,7 @@ typedef struct vmm_aspace {
 } vmm_aspace_t;
 
 #define VMM_ASPACE_FLAG_KERNEL 0x1
+#define VMM_ASPACE_FLAG_BTI    0x2
 
 /**
  * struct vmm_obj_slice - range of memory backed by a &struct vmm_obj

@@ -22,6 +22,7 @@
  */
 
 #include <arch/arm64/mmu.h>
+#include <arch/ops.h>
 #include <assert.h>
 #include <bits.h>
 #include <debug.h>
@@ -73,9 +74,11 @@ static inline bool is_valid_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
 }
 
 /* convert user level mmu flags to flags that go in L1 descriptors */
-static bool mmu_flags_to_pte_attr(uint flags, pte_t* out_attr)
+static bool mmu_flags_to_pte_attr(const uint aspace_flags, const uint flags, pte_t* out_attr)
 {
     pte_t attr = MMU_PTE_ATTR_AF;
+
+    DEBUG_ASSERT((aspace_flags & ~ARCH_ASPACE_FLAG_ALL) == 0);
 
     if (flags & ARCH_MMU_FLAG_TAGGED) {
         if ((flags & ARCH_MMU_FLAG_CACHE_MASK) & ~ARCH_MMU_FLAG_CACHED) {
@@ -124,13 +127,26 @@ static bool mmu_flags_to_pte_attr(uint flags, pte_t* out_attr)
     } else if (flags & ARCH_MMU_FLAG_PERM_USER) {
         /* User executable page, marked privileged execute never. */
         attr |= MMU_PTE_ATTR_PXN;
+
+        if (aspace_flags & ARCH_ASPACE_FLAG_BTI) {
+            attr |= MMU_PTE_ATTR_GP;
+        }
     } else {
         /* Privileged executable page, marked user execute never. */
         attr |= MMU_PTE_ATTR_UXN;
+
+        if (aspace_flags & ARCH_ASPACE_FLAG_BTI) {
+            attr |= MMU_PTE_ATTR_GP;
+        }
     }
 
     if (flags & ARCH_MMU_FLAG_NS) {
         attr |= MMU_PTE_ATTR_NON_SECURE;
+    }
+
+    /* GP bit is undefined/MBZ if BTI is not supported */
+    if ((attr & MMU_PTE_ATTR_GP) && !arch_bti_supported()) {
+        return false;
     }
 
     *out_attr = attr;
@@ -626,7 +642,7 @@ static int arm64_mmu_map_aspace(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t pa
         return NO_ERROR;
 
     pte_t pte_attr;
-    if (!mmu_flags_to_pte_attr(flags, &pte_attr)) {
+    if (!mmu_flags_to_pte_attr(aspace->flags, flags, &pte_attr)) {
         return ERR_INVALID_ARGS;
     }
 

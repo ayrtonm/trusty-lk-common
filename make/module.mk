@@ -121,6 +121,12 @@ endif
 endif
 endif
 
+# Branch Target Identification
+ifeq (true,$(call TOBOOL,$(KERNEL_BTI_ENABLED)))
+MODULE_COMPILEFLAGS += -mbranch-protection=bti \
+                       -DKERNEL_BTI_ENABLED
+endif
+
 # Shadow call stack
 ifeq (true,$(call TOBOOL,$(SCS_ENABLED)))
 # set in arch/$(ARCH)/toolchain.mk iff shadow call stack is supported

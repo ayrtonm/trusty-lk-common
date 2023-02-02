@@ -22,11 +22,24 @@
  */
 
 #include <arch/arm64/mmu.h>
+#include <arch/ops.h>
 #include <assert.h>
 #include <kernel/vm.h>
 #include <lk/compiler.h>
 #include <panic.h>
 #include <sys/types.h>
+
+static uint get_aspace_flags(void) {
+    uint aspace_flags = ARCH_ASPACE_FLAG_KERNEL;
+
+#ifdef KERNEL_BTI_ENABLED
+    if (arch_bti_supported()) {
+        aspace_flags |= ARCH_ASPACE_FLAG_BTI;
+    }
+#endif
+
+    return aspace_flags;
+}
 
 /* the main translation table */
 pte_t arm64_kernel_translation_table[MMU_KERNEL_PAGE_TABLE_ENTRIES_TOP]
@@ -64,7 +77,7 @@ void arch_mmu_map_early(vaddr_t vaddr,
                         size_t size,
                         uint flags) {
     pte_t attr;
-    bool res = mmu_flags_to_pte_attr(flags, &attr);
+    bool res = mmu_flags_to_pte_attr(get_aspace_flags(), flags, &attr);
     ASSERT(res);
     const uintptr_t vaddr_top_mask = ~0UL << MMU_KERNEL_SIZE_SHIFT;
     ASSERT((vaddr & vaddr_top_mask) == vaddr_top_mask);

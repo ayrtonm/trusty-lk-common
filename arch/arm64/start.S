@@ -317,6 +317,8 @@ arm_reset:
     br      tmp
 
 .Lmmu_on_vaddr:
+    /* Allow br from above if BTI is enabled, otherwise this is a NOP */
+    bti     j
 
     /* Update VBAR to its virtual address */
     adrl    tmp, .Learly_exception_base

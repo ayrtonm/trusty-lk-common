@@ -196,6 +196,7 @@
 #define MMU_PTE_ATTR_UXN                        BM(54, 1, 1)
 #define MMU_PTE_ATTR_PXN                        BM(53, 1, 1)
 #define MMU_PTE_ATTR_CONTIGUOUS                 BM(52, 1, 1)
+#define MMU_PTE_ATTR_GP                         BM(50, 1, 1)
 
 #define MMU_PTE_ATTR_NON_GLOBAL                 BM(11, 1, 1)
 #define MMU_PTE_ATTR_AF                         BM(10, 1, 1)

@@ -47,6 +47,9 @@ __BEGIN_CDECLS
 typedef struct arch_aspace arch_aspace_t;
 
 #define ARCH_ASPACE_FLAG_KERNEL         (1U<<0)
+#define ARCH_ASPACE_FLAG_BTI            (1U<<1)
+
+#define ARCH_ASPACE_FLAG_ALL            (ARCH_ASPACE_FLAG_KERNEL | ARCH_ASPACE_FLAG_BTI)
 
 /* initialize per address space */
 status_t arch_mmu_init_aspace(arch_aspace_t *aspace, vaddr_t base, size_t size, uint flags) __NONNULL((1));

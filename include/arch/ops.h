@@ -76,6 +76,13 @@ void arch_clear_pages_and_tags(vaddr_t addr, size_t size);
  */
 bool arch_tagging_enabled(void);
 
+/**
+ * arch_bti_supported - indicates if branch target identification is supported.
+ *
+ * Return: true if BTI is supported, false if not
+ */
+bool arch_bti_supported(void);
+
 __END_CDECLS
 
 #endif // !ASSEMBLY

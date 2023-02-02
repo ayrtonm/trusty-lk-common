@@ -20,6 +20,8 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#include <arch/ops.h>
 #include <assert.h>
 #include <err.h>
 #include <kernel/mutex.h>
@@ -42,6 +44,20 @@ vmm_aspace_t _kernel_aspace;
 
 static void dump_aspace(const vmm_aspace_t* a);
 static void dump_region(const vmm_region_t* r);
+
+static inline uint get_arch_aspace_flags(const uint vmm_aspace_flags) {
+    uint arch_flags = 0;
+
+    if (vmm_aspace_flags & VMM_ASPACE_FLAG_KERNEL) {
+        arch_flags |= ARCH_ASPACE_FLAG_KERNEL;
+    }
+
+    if (vmm_aspace_flags & VMM_ASPACE_FLAG_BTI) {
+        arch_flags |= ARCH_ASPACE_FLAG_BTI;
+    }
+
+    return arch_flags;
+}
 
 static vmm_region_t* vmm_find_region_in_bst(const struct bst_root* region_tree,
                                      vaddr_t vaddr, size_t size);
@@ -87,10 +103,18 @@ void vmm_init_preheap(void) {
     _kernel_aspace.base = KERNEL_ASPACE_BASE;
     _kernel_aspace.size = KERNEL_ASPACE_SIZE;
     _kernel_aspace.flags = VMM_ASPACE_FLAG_KERNEL;
+
+#ifdef KERNEL_BTI_ENABLED
+    if (arch_bti_supported()) {
+        _kernel_aspace.flags |= VMM_ASPACE_FLAG_BTI;
+    }
+#endif
+
     bst_root_initialize(&_kernel_aspace.regions);
 
     arch_mmu_init_aspace(&_kernel_aspace.arch_aspace, KERNEL_ASPACE_BASE,
-                         KERNEL_ASPACE_SIZE, ARCH_ASPACE_FLAG_KERNEL);
+                         KERNEL_ASPACE_SIZE,
+                         get_arch_aspace_flags(_kernel_aspace.flags));
 
     list_add_head(&aspace_list, &_kernel_aspace.node);
 }
@@ -913,6 +937,10 @@ __WEAK bool arch_tagging_enabled(void) {
     return false;
 }
 
+__WEAK bool arch_bti_supported(void) {
+    return false;
+}
+
 status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
                        struct vmm_obj* vmm_obj, size_t offset, size_t size,
                        void** ptr, uint8_t align_log2, uint vmm_flags,
@@ -1412,9 +1440,7 @@ status_t vmm_create_aspace_with_quota(vmm_aspace_t** _aspace,
 
     /* initialize the arch specific component to our address space */
     err = arch_mmu_init_aspace(&aspace->arch_aspace, aspace->base, aspace->size,
-                               (aspace->flags & VMM_ASPACE_FLAG_KERNEL)
-                                       ? ARCH_ASPACE_FLAG_KERNEL
-                                       : 0);
+                               get_arch_aspace_flags(aspace->flags));
     if (err < 0) {
         free(aspace);
         return err;
