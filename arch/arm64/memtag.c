@@ -104,12 +104,12 @@ void arch_clear_pages_and_tags(vaddr_t addr, size_t size)
 
 bool arm64_mte_enabled;
 
-bool arch_tagging_enabled()
+bool arch_tagging_enabled(void)
 {
     return arm64_mte_enabled;
 }
 
-bool arm64_tagging_supported()
+bool arm64_tagging_supported(void)
 {
     uint64_t v = ARM64_READ_SYSREG(id_aa64pfr1_el1);
     return ((v & 0xf00) >= 0x200);
