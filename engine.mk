@@ -113,6 +113,8 @@ GLOBAL_SHARED_RUSTFLAGS += -C symbol-mangling-version=v0
 GLOBAL_SHARED_RUSTFLAGS += -C panic=abort -Z link-native-libraries=no
 GLOBAL_SHARED_RUSTFLAGS += -Z panic_abort_tests
 GLOBAL_SHARED_RUSTFLAGS += --deny warnings
+# Enable LTO for all Rust modules.
+GLOBAL_SHARED_RUSTFLAGS += -C lto=thin
 
 # Architecture specific compile flags
 ARCH_COMPILEFLAGS :=
