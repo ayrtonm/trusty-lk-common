@@ -243,7 +243,7 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
                     printf(" ");
                 }
             } else {
-                printf("--");
+                printf("-- ");
             }
         }
 
