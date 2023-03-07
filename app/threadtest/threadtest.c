@@ -62,7 +62,7 @@ static int threadtest_run_in_thread(const char* thread_name,
     return thread_ret;
 }
 
-static void thread_test_corrupt_current_thread_cookie() {
+static void thread_test_corrupt_current_thread_cookie(void) {
     thread_t *curr = get_current_thread();
     curr->cookie = curr->cookie + 1;
 }
