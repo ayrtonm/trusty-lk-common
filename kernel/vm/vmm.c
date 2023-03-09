@@ -744,7 +744,8 @@ static status_t alloc_region(vmm_aspace_t* aspace,
                                   uint vmm_flags,
                                   uint region_flags,
                                   uint arch_mmu_flags,
-                                  vmm_region_t** out) {
+                                  vmm_region_t** out,
+                                  struct bst_root** out_root) {
     DEBUG_ASSERT((vmm_flags & VMM_REGION_FLAG_INTERNAL_MASK) == 0);
     /* make a region struct for it and stick it in the list */
     vmm_region_t* r = alloc_region_struct(name, vaddr, size,
@@ -752,6 +753,8 @@ static status_t alloc_region(vmm_aspace_t* aspace,
                                           arch_mmu_flags);
     if (!r)
         return ERR_NO_MEMORY;
+
+    struct bst_root* root;
 
     /* if they ask us for a specific spot, put it there */
     if (vmm_flags & VMM_FLAG_VALLOC_SPECIFIC) {
@@ -767,13 +770,16 @@ static status_t alloc_region(vmm_aspace_t* aspace,
                  * The caller is responsible for managing guard pages.
                  */
                 r->flags |= VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD;
-                ret = add_region_to_vmm_res_obj(vmm_obj_to_res_vmm_obj(reserved_region->obj_slice.obj), r);
+                struct vmm_res_obj *res_obj = vmm_obj_to_res_vmm_obj(reserved_region->obj_slice.obj);
+                ret = add_region_to_vmm_res_obj(res_obj, r);
+                root = &res_obj->regions;
             } else {
                 ret = ERR_NO_MEMORY;
             }
         } else {
             /* stick it in the list, checking to see if it fits */
             ret = add_region_to_aspace(aspace, r);
+            root = &aspace->regions;
         }
         if (ret < 0) {
             /* didn't fit */
@@ -802,10 +808,14 @@ static status_t alloc_region(vmm_aspace_t* aspace,
 
         /* add it to the region list */
         ASSERT(bst_insert(&aspace->regions, &r->node, vmm_region_cmp));
+        root = &aspace->regions;
     }
 
     if (out) {
         *out = r;
+    }
+    if (out_root) {
+        *out_root = root;
     }
     return NO_ERROR;
 }
@@ -899,7 +909,7 @@ status_t vmm_reserve_space(vmm_aspace_t* aspace,
 
     /* build a new region structure */
     ret = alloc_region(aspace, name, size, vaddr, 0, VMM_FLAG_VALLOC_SPECIFIC,
-                       VMM_REGION_FLAG_RESERVED, arch_mmu_flags, NULL);
+                       VMM_REGION_FLAG_RESERVED, arch_mmu_flags, NULL, NULL);
 
     mutex_release(&vmm_lock);
     return ret;
@@ -985,9 +995,10 @@ status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
 
     /* allocate a region and put it in the aspace list */
     vmm_region_t* r;
+    struct bst_root *region_root = NULL;
     ret = alloc_region(aspace, name, size, vaddr, align_log2,
                                 vmm_flags, VMM_REGION_FLAG_PHYSICAL,
-                                arch_mmu_flags, &r);
+                                arch_mmu_flags, &r, &region_root);
     if (ret) {
         LTRACEF("alloc_region failed\n");
         goto err_alloc_region;
@@ -1042,7 +1053,9 @@ status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
 
 err_map_obj:
     vmm_obj_slice_release_locked(&r->obj_slice);
-    bst_delete(&aspace->regions, &r->node);
+    ASSERT(region_root);
+    ASSERT(r);
+    bst_delete(region_root, &r->node);
     free(r);
 err_alloc_region:
     mutex_release(&vmm_lock);
@@ -1105,7 +1118,7 @@ status_t vmm_alloc_physical_etc(vmm_aspace_t* aspace,
     /* allocate a region and put it in the aspace list */
     vmm_region_t* r;
     ret = alloc_region(aspace, name, size, vaddr, align_log2, vmm_flags,
-                       VMM_REGION_FLAG_PHYSICAL, arch_mmu_flags, &r);
+                       VMM_REGION_FLAG_PHYSICAL, arch_mmu_flags, &r, NULL);
     if (ret) {
         goto err_alloc_region;
     }
