@@ -276,6 +276,8 @@ GLOBAL_DEFINES += \
 	LK_LOGLEVEL=$(LOG_LEVEL_KERNEL) \
 	TLOG_LVL_DEFAULT=$$(($(LOG_LEVEL_USER)+2)) \
 
+GLOBAL_USER_INCLUDES += $(addsuffix /arch/$(ARCH)/include,$(LKINC))
+
 # test build?
 ifneq ($(TEST_BUILD),)
 GLOBAL_DEFINES += \

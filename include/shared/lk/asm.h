@@ -23,12 +23,28 @@
 #ifndef __ASM_H
 #define __ASM_H
 
-#define WEAK_FUNCTION(x) .weak x; LOCAL_FUNCTION(x)
-#define FUNCTION(x) .global x; LOCAL_FUNCTION(x)
-#define DATA(x) .global x; .type x,STT_OBJECT; x:
+/* Pick-up arch specific overrides and macros */
+#include <arch/asm.h>
 
+#ifndef WEAK_FUNCTION
+#define WEAK_FUNCTION(x) .weak x; LOCAL_FUNCTION(x)
+#endif
+
+#ifndef FUNCTION
+#define FUNCTION(x) .global x; LOCAL_FUNCTION(x)
+#endif
+
+#ifndef DATA
+#define DATA(x) .global x; .type x,STT_OBJECT; x:
+#endif
+
+#ifndef LOCAL_FUNCTION
 #define LOCAL_FUNCTION(x) .type x,STT_FUNC; x:
+#endif
+
+#ifndef LOCAL_DATA
 #define LOCAL_DATA(x) .type x,STT_OBJECT; x:
+#endif
 
 #endif
 

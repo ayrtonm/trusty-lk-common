@@ -124,7 +124,8 @@ endif
 # Branch Target Identification
 ifeq (true,$(call TOBOOL,$(KERNEL_BTI_ENABLED)))
 MODULE_COMPILEFLAGS += -mbranch-protection=bti \
-                       -DKERNEL_BTI_ENABLED
+                       -DKERNEL_BTI_ENABLED \
+                       -DBTI_ENABLED
 endif
 
 # Shadow call stack

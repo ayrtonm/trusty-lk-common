@@ -24,9 +24,12 @@ size                    .req x22
 supports_mte            .req x23
 
 .section .text.boot
-FUNCTION(_start)
 .globl arm_reset
 arm_reset:
+.globl _start
+.type _start,STT_OBJECT
+_start:
+    /* This instruction is read by the bootloader to determine image type */
     bl      arm64_elX_to_el1
 
     /* Initialize VBAR to the temporary exception vector table */
