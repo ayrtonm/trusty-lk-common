@@ -128,37 +128,49 @@ static void dump_iframe(struct arm_iframe *frame)
     dump_mode_regs(frame->spsr, (uintptr_t)(frame + 1), frame->lr);
 }
 
-static void halt_thread(uint32_t spsr)
+/*
+ * Differentiate between crashes coming from different exception handlers
+ * using the high order bits. DFSR and IFSR have the high order bits
+ * reserved/zeroed, so it should be fine to overwrite them.
+ */
+enum crash_reason_bits {
+    CRASH_REASON_SYSCALL        = 0x00000000,
+    CRASH_REASON_UNDEFINED      = 0x10000000,
+    CRASH_REASON_DATA_ABORT     = 0x20000000,
+    CRASH_REASON_PREFETCH_ABORT = 0x30000000,
+};
+
+static void halt_thread(uint32_t spsr, uint32_t crash_reason)
 {
     if ((spsr & CPSR_MODE_MASK) == CPSR_MODE_USR) {
         arch_enable_fiqs();
         arch_enable_ints();
-        trusty_app_crash();
+        trusty_app_crash(crash_reason);
     }
 
     panic("fault\n");
     for (;;);
 }
 
-static void exception_die(struct arm_fault_frame *frame, const char *msg)
+static void exception_die(struct arm_fault_frame *frame, const char *msg, uint32_t crash_reason)
 {
     dprintf(CRITICAL, "%s", msg);
     dump_fault_frame(frame);
 
-    halt_thread(frame->spsr);
+    halt_thread(frame->spsr, crash_reason);
 }
 
-static void exception_die_iframe(struct arm_iframe *frame, const char *msg)
+static void exception_die_iframe(struct arm_iframe *frame, const char *msg, uint32_t crash_reason)
 {
     dprintf(CRITICAL, "%s", msg);
     dump_iframe(frame);
 
-    halt_thread(frame->spsr);
+    halt_thread(frame->spsr, crash_reason);
 }
 
 __WEAK void arm_syscall_handler(struct arm_fault_frame *frame)
 {
-    exception_die(frame, "unhandled syscall, halting\n");
+    exception_die(frame, "unhandled syscall, halting\n", CRASH_REASON_SYSCALL);
 }
 
 void arm_undefined_handler(struct arm_iframe *frame)
@@ -203,7 +215,7 @@ void arm_undefined_handler(struct arm_iframe *frame)
     }
 #endif
 
-    exception_die_iframe(frame, "undefined abort, halting\n");
+    exception_die_iframe(frame, "undefined abort, halting\n", CRASH_REASON_UNDEFINED);
 }
 
 void arm_data_abort_handler(struct arm_fault_frame *frame)
@@ -266,7 +278,7 @@ void arm_data_abort_handler(struct arm_fault_frame *frame)
     dprintf(CRITICAL, "DFAR 0x%x (fault address)\n", far);
     dprintf(CRITICAL, "DFSR 0x%x (fault status register)\n", fsr);
 
-    exception_die(frame, "halting\n");
+    exception_die(frame, "halting\n", CRASH_REASON_DATA_ABORT | fsr);
 }
 
 void arm_data_abort_handler_stack_overflow(struct arm_fault_frame *frame)
@@ -334,5 +346,5 @@ void arm_prefetch_abort_handler(struct arm_fault_frame *frame)
     dprintf(CRITICAL, "IFAR 0x%x (fault address)\n", far);
     dprintf(CRITICAL, "IFSR 0x%x (fault status register)\n", fsr);
 
-    exception_die(frame, "halting\n");
+    exception_die(frame, "halting\n", CRASH_REASON_PREFETCH_ABORT | fsr);
 }

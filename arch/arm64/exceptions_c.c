@@ -532,7 +532,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     if (from_lower) {
         arch_enable_fiqs();
         arch_enable_ints();
-        trusty_app_crash();
+        trusty_app_crash(esr);
     }
     panic("die\n");
 }
