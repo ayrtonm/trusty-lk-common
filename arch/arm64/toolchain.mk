@@ -18,6 +18,10 @@ ifeq (true,$(call TOBOOL,$(SCS_ENABLED)))
 ARCH_arm64_COMPILEFLAGS += -ffixed-x18
 endif
 
+# PLATFORM_arm64_COMPILEFLAGS allows platform to define additional global
+# compile flags that it will be using.
+ARCH_arm64_COMPILEFLAGS += $(PLATFORM_arm64_COMPILEFLAGS)
+
 CLANG_ARM64_TARGET_SYS ?= linux
 CLANG_ARM64_TARGET_ABI ?= gnu
 
