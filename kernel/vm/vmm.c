@@ -951,6 +951,18 @@ __WEAK bool arch_bti_supported(void) {
     return false;
 }
 
+__WEAK bool arch_sve_supported(void) {
+    return false;
+}
+
+__WEAK uint64_t arch_enable_sve(void){
+    return 0L;
+}
+
+__WEAK uint64_t arch_disable_sve(void){
+    return 0L;
+}
+
 status_t vmm_alloc_obj(vmm_aspace_t* aspace, const char* name,
                        struct vmm_obj* vmm_obj, size_t offset, size_t size,
                        void** ptr, uint8_t align_log2, uint vmm_flags,

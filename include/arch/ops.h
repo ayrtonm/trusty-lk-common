@@ -83,6 +83,27 @@ bool arch_tagging_enabled(void);
  */
 bool arch_bti_supported(void);
 
+/**
+ * arch_sve_supported - indicates if Scalable Vector Extension (SVE) is supported.
+ *
+ * Return: true if SVE is supported, false if not
+ */
+bool arch_sve_supported(void);
+
+/*
+ * arch_enable_sve - Enables Scalable Vector Extension (SVE).
+ *
+ * Return: Value of CPACR_EL1 before any change was made.
+ */
+uint64_t arch_enable_sve(void);
+
+/*
+ * arch_disable_sve - Disables Scalable Vector Extension (SVE).
+ *
+ * Return: Value of CPACR_EL1 before any change was made.
+ */
+uint64_t arch_disable_sve(void);
+
 __END_CDECLS
 
 #endif // !ASSEMBLY
