@@ -20,11 +20,14 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <printf.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <sys/types.h>
+#include <trusty/io_handle.h>
 
+#if LK_LIBC_IMPLEMENTATION_IS_LK
 #define DEFINE_STDIO_DESC(id)   \
     [(id)]  = {                 \
         .io = &console_io,      \
@@ -36,14 +39,16 @@ __WEAK FILE __stdio_FILEs[3] = {
     DEFINE_STDIO_DESC(2), /* stderr */
 };
 #undef DEFINE_STDIO_DESC
+#endif
 
 static size_t lock_write_commit_unlock(FILE *fp, const char* s, size_t length)
 {
     size_t bytes_written;
-    io_lock(fp->io);
-    bytes_written = io_write(fp->io, s, length);
-    io_write_commit(fp->io);
-    io_unlock(fp->io);
+    io_handle_t *io = file_io_handle(fp);
+    io_lock(io);
+    bytes_written = io_write(io, s, length);
+    io_write_commit(io);
+    io_unlock(io);
     return bytes_written;
 }
 
@@ -91,7 +96,8 @@ size_t fwrite(const void *ptr, size_t size, size_t count, FILE *fp)
 int getc(FILE *fp)
 {
     char c;
-    ssize_t ret = io_read(fp->io, &c, sizeof(c));
+    io_handle_t *io = file_io_handle(fp);
+    ssize_t ret = io_read(io, &c, sizeof(c));
 
     return (ret > 0) ? c : ret;
 }
@@ -103,17 +109,18 @@ int getchar(void)
 
 static int _fprintf_output_func(const char *str, size_t len, void *state)
 {
-    FILE *fp = (FILE *)state;
+    io_handle_t *io = file_io_handle((FILE *)state);
 
-    return io_write(fp->io, str, len);
+    return io_write(io, str, len);
 }
 
 int vfprintf_worker(FILE *fp, const char *fmt, va_list ap, int filtered_on_release)
 {
-    io_lock(fp->io);
+    io_handle_t *io = file_io_handle(fp);
+    io_lock(io);
     int result = _printf_engine(&_fprintf_output_func, (void *)fp, fmt, ap);
-    io_write_commit(fp->io);
-    io_unlock(fp->io);
+    io_write_commit(io);
+    io_unlock(io);
     return result;
 }
 

@@ -21,17 +21,19 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <lib/io.h>
 #include <stdio.h>
+#include <trusty/io_handle.h>
 
 io_handle_t* fd_io_handle(int fd) {
-    if ((fd == 1) || (fd == 2)) {
+    if ((fd == 0) || (fd == 1) || (fd == 2)) {
         return &console_io;
     }
     return NULL;
 }
 
 io_handle_t* file_io_handle(FILE* file) {
-    if ((file == stdout) || (file == stderr)) {
+    if ((file == stdin) || (file == stdout) || (file == stderr)) {
         return &console_io;
     }
     return NULL;
