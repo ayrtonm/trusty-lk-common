@@ -29,6 +29,12 @@
 #include <ctype.h>
 #include <errno.h>
 
+/*
+ * Include our own stdlib.h which contains the definitions
+ * for all functions in this file
+ */
+#include "include/stdlib.h"
+
 #define LONG_IS_INT 1
 
 static int hexval(char c)
