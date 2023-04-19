@@ -20,12 +20,12 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <io_handle.h>
 #include <printf.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <sys/types.h>
-#include <trusty/io_handle.h>
 
 #if LK_LIBC_IMPLEMENTATION_IS_LK
 #define DEFINE_STDIO_DESC(id)   \

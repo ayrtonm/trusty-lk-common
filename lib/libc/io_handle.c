@@ -21,9 +21,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <io_handle.h>
 #include <lib/io.h>
 #include <stdio.h>
-#include <trusty/io_handle.h>
 
 io_handle_t* fd_io_handle(int fd) {
     if ((fd == 0) || (fd == 1) || (fd == 2)) {
