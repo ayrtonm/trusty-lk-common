@@ -348,15 +348,16 @@ void arm_generic_timer_init(int irq, uint32_t freq_override)
 {
     uint32_t cntfrq;
 
-    if (freq_override == 0) {
-        cntfrq = read_cntfrq();
+    // use frequency value from cntfrq reg by default
+    cntfrq = read_cntfrq();
 
-        if (!cntfrq) {
+    if (!cntfrq) {
+        if (freq_override == 0) {
             TRACEF("Failed to initialize timer, frequency is 0\n");
             return;
+        } else {
+            cntfrq = freq_override;
         }
-    } else {
-        cntfrq = freq_override;
     }
 
 #if LOCAL_TRACE
