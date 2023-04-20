@@ -747,6 +747,8 @@ static status_t alloc_region(vmm_aspace_t* aspace,
                                   vmm_region_t** out,
                                   struct bst_root** out_root) {
     DEBUG_ASSERT((vmm_flags & VMM_REGION_FLAG_INTERNAL_MASK) == 0);
+    DEBUG_ASSERT(vaddr == arch_adjusted_vaddr(vaddr, aspace->flags &
+                                              ARCH_ASPACE_FLAG_KERNEL));
     /* make a region struct for it and stick it in the list */
     vmm_region_t* r = alloc_region_struct(name, vaddr, size,
                                           region_flags | vmm_flags,
@@ -1313,6 +1315,7 @@ status_t vmm_get_obj(const vmm_aspace_t *aspace, vaddr_t vaddr, size_t size,
 
     mutex_acquire(&vmm_lock);
 
+    vaddr = arch_adjusted_vaddr(vaddr, aspace->flags & ARCH_ASPACE_FLAG_KERNEL);
     struct vmm_region *region = vmm_find_region(aspace, vaddr);
     if (!region) {
         ret = ERR_NOT_FOUND;
@@ -1395,6 +1398,8 @@ status_t vmm_free_region_etc(vmm_aspace_t* aspace,
                              size_t size,
                              uint32_t flags) {
     DEBUG_ASSERT(aspace);
+    DEBUG_ASSERT(vaddr == arch_adjusted_vaddr(vaddr, aspace->flags &
+                                              ARCH_ASPACE_FLAG_KERNEL));
 
     mutex_acquire(&vmm_lock);
 
