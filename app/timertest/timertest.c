@@ -31,7 +31,13 @@
 #define S2NS(s) (MS2NS(s) * 1000LL)
 
 /* Expect better than 1us timer resolution. */
+#if GEM5
+// In gem5 simulation CNTPCT register is updated with frequency less than
+// 1MHz, so adjust target period for this test
+#define TIMER_TEST_MAX_CLOCK_PERIOD (1200)
+#else
 #define TIMER_TEST_MAX_CLOCK_PERIOD (900)
+#endif
 
 /*
  * Expect much better than 1ms timer interrupt latency, but qemu currently has
