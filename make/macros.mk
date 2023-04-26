@@ -10,6 +10,10 @@ TOBUILDDIR = $(addprefix $(BUILDDIR)/,$(1))
 # converts specified variable to boolean value
 TOBOOL = $(if $(filter-out 0 false,$1),true,false)
 
+# try to find a Trusty external at external/trusty first
+# (if we moved it there), otherwise try the old directory
+FIND_EXTERNAL = $(if $(wildcard external/trusty/$1),external/trusty/$1,external/$1)
+
 COMMA := ,
 EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
