@@ -99,7 +99,8 @@ static uint64_t wrap_add(uint64_t addr, int offset) {
     return result;
 }
 
-static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags) {
+static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags, char *name,
+                       size_t name_size) {
     status_t ret = NO_ERROR;
     vmm_aspace_t *aspace = vaddr_to_aspace((void*)addr);
     if (aspace) {
@@ -107,6 +108,9 @@ static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags) {
     }
 
     if (aspace && ret == NO_ERROR) {
+        if (name) {
+            vmm_get_address_description(addr, name, name_size);
+        }
         return true;
     }
     return false;
@@ -114,12 +118,12 @@ static bool getmeminfo(uint64_t addr, paddr_t *paddr, uint *flags) {
 
 static void printmemattrs(
         const char *prefix, paddr_t pstart, vaddr_t vstart, size_t len,
-        uint flags) {
+        uint flags, const char* name) {
     if (!len) {
         return;
     }
-    printf("%s0x%lx/0x%zx, flags: 0x%02x [ read%s%s%s",
-            prefix, pstart, len, flags,
+    printf("%s0x%lx/0x%zx, flags: 0x%02x, region: %s [ read%s%s%s",
+            prefix, pstart, len, flags, name,
             !(flags & ARCH_MMU_FLAG_PERM_RO) ? " write" : "",
             !(flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE) ? " execute" : "",
             (flags & ARCH_MMU_FLAG_PERM_USER) ? " user" : "");
@@ -169,17 +173,20 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
 
     paddr_t paddr1, paddr2;
     uint flags1, flags2;
+    char name1[VMM_MAX_ADDRESS_DESCRIPTION_SIZE];
+    char name2[VMM_MAX_ADDRESS_DESCRIPTION_SIZE];
     bool info1valid =false;
     bool info2valid = false;
     bool read1ok = false;
     bool read2ok = false;
 
-    info1valid = getmeminfo(addr, &paddr1, &flags1);
+    info1valid = getmeminfo(addr, &paddr1, &flags1, name1, sizeof(name1));
 
     if (bytesonfirstpage < sizeof(data)) {
         /* this block spans a page boundary */
         secondpageaddr = wrap_add(addr, bytesonfirstpage);
-        info2valid = getmeminfo(secondpageaddr, &paddr2, &flags2);
+        info2valid = getmeminfo(secondpageaddr, &paddr2, &flags2, name2,
+                                sizeof(name2));
     }
 
     if (!info1valid && !info2valid) {
@@ -202,9 +209,9 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
         read2ok = (ret == NO_ERROR);
     }
 
-    printf("\nmemory around %3s (", name);
+    printf(" \nmemory around %3s (", name);
     if (info1valid) {
-        printmemattrs("phys: ", paddr1, addr, bytesonfirstpage, flags1);
+        printmemattrs("phys: ", paddr1, addr, bytesonfirstpage, flags1, name1);
     } else {
         printf("phys: <unmapped>/0x%" PRIx64 "):\n", bytesonfirstpage);
     }
@@ -214,7 +221,8 @@ static void dump_memory_around_register(const char *name, uint64_t regaddr) {
                    paddr2,
                    secondpageaddr,
                    sizeof(data) - bytesonfirstpage,
-                   flags2);
+                   flags2,
+                   name2);
         } else {
             printf("              and (phys: <unmapped>/0x%" PRIx64 "):\n",
                     sizeof(data) - bytesonfirstpage);
@@ -480,6 +488,12 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
             } else {
                 printf("0x%" PRIx64, far);
                 print_mem_around_fault = true;
+                vmm_aspace_t *aspace = vaddr_to_aspace((void*)far);
+                if (aspace) {
+                    char region[VMM_MAX_ADDRESS_DESCRIPTION_SIZE];
+                    vmm_get_address_description(far, region, sizeof(region));
+                    printf(" (%s)", region);
+                }
             }
             printf(", PC at 0x%" PRIx64 "(0x%lx)\n", iframe->elr, display_pc);
             if (BIT(iss, 24)) { /* ISV bit */

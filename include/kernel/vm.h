@@ -526,6 +526,29 @@ void vmm_context_switch(vmm_aspace_t *oldspace, vmm_aspace_t *newaspace);
 void vmm_set_active_aspace(vmm_aspace_t *aspace);
 
 /**
+ * vmm_get_address_description() - get a descriptive name for the given address
+ * @vaddr: the address to get a descriptive name for
+ * @name: a place to store the name
+ * @name_size: the size of the output buffer
+ *
+ * Gets a descriptive name for the given address and returns it in the 'name'
+ * buffer, up to 'name_size' bytes including the null terminator.
+ * If the address falls inside of a region, the name of the region will be
+ * returned. If the address is not in a region, but falls just before and/or
+ * after another region, it will return a string indicating the distance in
+ * bytes from those region(s).
+ * If the address is not in or adjacent to a region, the description will say
+ * "<no region>", and if the region cannot be determined due to the vmm_lock
+ * being held, the returned description will say "<unavailable>".
+ */
+void vmm_get_address_description(vaddr_t vaddr, char *name, size_t name_size);
+
+#define VMM_MAX_ADDRESS_DESCRIPTION_SIZE \
+    ((sizeof(((vmm_region_t*)0)->name) - 1) * 2 + \
+     sizeof("NNNN bytes after ") + \
+     sizeof(", NNNN bytes before ") - 1)
+
+/**
  * update_relocation_entries() - Update all entries in the relocation table
  *                               by subtracting a given value from each one.
  * @relr_start: start of the relocation list.

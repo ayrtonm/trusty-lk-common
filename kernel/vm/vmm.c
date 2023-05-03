@@ -1248,8 +1248,63 @@ static vmm_region_t* vmm_find_region(const vmm_aspace_t* aspace,
     return vmm_find_region_in_bst(&aspace->regions, vaddr, PAGE_SIZE);
 }
 
-static vmm_region_t* vmm_find_region_in_bst(const struct bst_root* region_tree,
-                                     vaddr_t vaddr, size_t size) {
+void vmm_get_address_description(vaddr_t vaddr, char *name,  size_t name_size) {
+    /*
+     * If the vmm lock is already held by the current thread, or cannot be
+     * acquired immediately, return right away to avoid blocking or deadlocking
+     * the caller.
+     */
+    if(is_mutex_held(&vmm_lock) ||
+       mutex_acquire_timeout(&vmm_lock, 0) != NO_ERROR) {
+         snprintf(name, name_size, "<unavailable>");
+         return;
+    }
+
+    vmm_region_t* region = NULL;
+    vmm_aspace_t* aspace = vaddr_to_aspace((void*)vaddr);
+
+    if(aspace) {
+        vaddr = arch_adjusted_vaddr(vaddr,
+                                    aspace->flags & ARCH_ASPACE_FLAG_KERNEL);
+        region = vmm_find_region_in_bst(&aspace->regions, vaddr, 0);
+    }
+    if (region) {
+        snprintf(name, name_size, "%s", region->name);
+    } else {
+        vaddr_t next, prev;
+        vmm_region_t* before = NULL;
+        vmm_region_t* after = NULL;
+        if(!__builtin_add_overflow(vaddr, PAGE_SIZE, &next)) {
+            before = vmm_find_region_in_bst(&aspace->regions, next, 0);
+        }
+        if (!__builtin_sub_overflow(vaddr, PAGE_SIZE, &prev)) {
+            after = vmm_find_region_in_bst(&aspace->regions, prev, 0);
+        }
+        if (before && after) {
+            snprintf(name, name_size, "%zu bytes after %s, %zu bytes before %s",
+                    vaddr - (after->base + after->obj_slice.size),
+                    after->name,
+                    before->base - vaddr,
+                    before->name);
+        } else if (before) {
+            snprintf(name, name_size, "%zu bytes before %s",
+                    before->base - vaddr,
+                    before->name);
+        } else if (after) {
+            snprintf(name, name_size, "%zu bytes after %s",
+                    vaddr - (after->base + after->obj_slice.size),
+                    after->name);
+        } else {
+            snprintf(name, name_size, "<no region>");
+        }
+    }
+
+    mutex_release(&vmm_lock);
+}
+
+static vmm_region_t* vmm_find_region_in_bst(
+                const struct bst_root* region_tree,
+                vaddr_t vaddr, size_t size) {
     vmm_region_t* r;
 
     vaddr = round_down(vaddr, PAGE_SIZE);
