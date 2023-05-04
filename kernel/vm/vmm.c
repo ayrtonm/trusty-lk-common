@@ -1282,17 +1282,17 @@ void vmm_get_address_description(vaddr_t vaddr, char *name,  size_t name_size) {
         }
         if (before && after) {
             snprintf(name, name_size, "%zu bytes after %s, %zu bytes before %s",
-                    vaddr - (after->base + after->obj_slice.size),
+                    (size_t) (vaddr - (after->base + after->obj_slice.size)),
                     after->name,
-                    before->base - vaddr,
+                    (size_t) (before->base - vaddr),
                     before->name);
         } else if (before) {
             snprintf(name, name_size, "%zu bytes before %s",
-                    before->base - vaddr,
+                    (size_t) (before->base - vaddr),
                     before->name);
         } else if (after) {
             snprintf(name, name_size, "%zu bytes after %s",
-                    vaddr - (after->base + after->obj_slice.size),
+                    (size_t) (vaddr - (after->base + after->obj_slice.size)),
                     after->name);
         } else {
             snprintf(name, name_size, "<no region>");
