@@ -765,16 +765,17 @@ static status_t alloc_region(vmm_aspace_t* aspace,
         if (reserved_region) {
             if (reserved_region->flags & VMM_FLAG_NO_PHYSICAL) {
                 if (!is_range_inside_region(reserved_region, vaddr, size)) {
-                    return ERR_INVALID_ARGS;
+                    ret = ERR_INVALID_ARGS;
+                } else {
+                    /*
+                     * Allocations from a NO_PHYSICAL region are always specific.
+                     * The caller is responsible for managing guard pages.
+                     */
+                    r->flags |= VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD;
+                    struct vmm_res_obj *res_obj = vmm_obj_to_res_vmm_obj(reserved_region->obj_slice.obj);
+                    ret = add_region_to_vmm_res_obj(res_obj, r);
+                    root = &res_obj->regions;
                 }
-                /*
-                 * Allocations from a NO_PHYSICAL region are always specific.
-                 * The caller is responsible for managing guard pages.
-                 */
-                r->flags |= VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD;
-                struct vmm_res_obj *res_obj = vmm_obj_to_res_vmm_obj(reserved_region->obj_slice.obj);
-                ret = add_region_to_vmm_res_obj(res_obj, r);
-                root = &res_obj->regions;
             } else {
                 ret = ERR_NO_MEMORY;
             }
@@ -794,6 +795,7 @@ static status_t alloc_region(vmm_aspace_t* aspace,
             (vmm_flags & VMM_FLAG_NO_END_GUARD)) {
             LTRACEF("invalid allocation request: only requests for a specific"
                     " spot may disable guard pages before/after allocation\n");
+            free(r);
             return ERR_INVALID_ARGS;
         }
 
