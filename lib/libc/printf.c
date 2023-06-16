@@ -114,10 +114,13 @@ int vsnprintf(char *str, size_t len, const char *fmt, va_list ap)
     args.pos = 0;
 
     wlen = _printf_unfiltered_engine(&_vsnprintf_output, (void *)&args, fmt, ap);
-    if (args.pos >= len)
-        str[len-1] = '\0';
-    else
-        str[wlen] = '\0';
+    if(len > 0) {
+        if (args.pos >= len)
+            str[len-1] = '\0';
+        else
+            str[wlen] = '\0';
+    }
+
     return wlen;
 }
 
@@ -564,6 +567,18 @@ next_format:
                 uc = va_arg(ap, unsigned int);
                 OUTPUT_CHAR(uc);
                 break;
+            case '*':
+            {
+                /* indirect format */
+                int f = va_arg(ap, int);
+                if(f < 0) {
+                    format_num = (unsigned int) (-f);
+                    flags |= LEFTFORMATFLAG;
+                } else {
+                    format_num = (unsigned int) (f);
+                }
+                goto next_format;
+            }
             case 's':
                 s = va_arg(ap, const char *);
                 if (s == 0)
