@@ -38,6 +38,7 @@ static inline uintptr_t round_down(uintptr_t val, size_t alignment) {
     return val & ~(alignment - 1);
 }
 
+#define ROUND_UP(n, d) (((n) + (size_t)(d) - 1) & ~((size_t)(d) - 1))
 #define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
 
 static inline uintptr_t align(uintptr_t ptr, size_t alignment) {
