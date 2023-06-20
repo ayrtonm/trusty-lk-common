@@ -686,7 +686,6 @@ status_t sm_intc_fiq_enter(void)
 
     if (irq >= 1020) {
 #if ARM_GIC_USE_DOORBELL_NS_IRQ
-        uint cpu = arch_curr_cpu_num();
         uint64_t val = arm_gicv3_sgir_val(ARM_GIC_DOORBELL_IRQ, cpu);
 
         GICCREG_WRITE(0, icc_igrpen1_el1, 0); /* Disable secure Group 1 */
