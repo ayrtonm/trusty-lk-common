@@ -22,6 +22,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/safecopy.S \
 	$(LOCAL_DIR)/pan.c \
 	$(LOCAL_DIR)/bti.c \
+	$(LOCAL_DIR)/pac.c \
 	$(LOCAL_DIR)/sve.c \
 #	$(LOCAL_DIR)/arm/start.S \
 	$(LOCAL_DIR)/arm/cache.c \

@@ -84,6 +84,20 @@ bool arch_tagging_enabled(void);
 bool arch_bti_supported(void);
 
 /**
+ * arch_pac_address_supported - indicates if PAC for addresses is supported.
+ *
+ * Return: true if PAC is supported, false if not
+ */
+bool arch_pac_address_supported(void);
+
+/**
+ * arch_pac_exception_supported - indicates if AUT* & RETA* failures generate faults.
+ *
+ * Return: true if FPAC is supported, false if not
+ */
+bool arch_pac_exception_supported(void);
+
+/**
  * arch_sve_supported - indicates if Scalable Vector Extension (SVE) is supported.
  *
  * Return: true if SVE is supported, false if not
