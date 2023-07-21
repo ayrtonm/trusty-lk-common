@@ -21,27 +21,12 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <arch/arm64/sregs.h>
 #include <arch/arm64.h>
 #include <arch/pan.h>
 #include <inttypes.h>
 #include <lk/init.h>
 #include <stdio.h>
-
-#define ID_AA64MMFR1_EL1_PAN_SHIFT 20u
-#define ID_AA64MMFR1_EL1_PAN_MASK 0xfu
-#define ID_AA64MMFR1_EL1_PAN_NOT_SUPPORTED 0x0u
-#define ID_AA64MMFR1_EL1_PAN_SUPPORTED 0x1u
-#define ID_AA64MMFR1_EL1_PAN2_SUPPORTED 0x2u
-#define ID_AA64MMFR1_EL1_PAN3_SUPPORTED 0x3u
-
-/* PAN system register */
-#define PAN s3_0_c4_c2_3
-
-#define PAN_PAN_SHIFT 22u
-#define PAN_PAN_MASK 0x1ull
-
-#define SCTLR_EL1_SPAN_SHIFT 23u    /* SPAN is from FEAT_PAN1 */
-#define SCTLR_EL1_EPAN_SHIFT 57u    /* EPAN is from FEAT_PAN3 */
 
 static uint8_t arm64_pan_support_level(void) {
     uint64_t v = ARM64_READ_SYSREG(id_aa64mmfr1_el1);
