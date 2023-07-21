@@ -21,14 +21,19 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <arch/arm64.h>
 #include <arch/ops.h>
-#include <inttypes.h>
 
-#define ID_AA64PFR1_EL1_BTI_SHIFT 0u
-#define ID_AA64PFR1_EL1_BIT_MASK 0xfu
-#define ID_AA64PFR1_EL1_BTI_NOT_SUPPORTED 0x0u
-#define ID_AA64PFR1_EL1_BTI_SUPPORTED 0x1u
+/* FEAT_BTI is mandatory at ARM-A v8.5.
+ * Assume present at v9 (and above), otherwise probe ID registers.
+ */
+#if __ARM_ARCH >= 9
+bool arch_bti_supported(void) {
+    return true;
+}
+#else
+
+#include <arch/arm64/sregs.h>
+#include <arch/arm64.h>
 
 static uint8_t arm64_bti_support_level(void) {
     uint64_t v = ARM64_READ_SYSREG(id_aa64pfr1_el1);
@@ -38,3 +43,4 @@ static uint8_t arm64_bti_support_level(void) {
 bool arch_bti_supported(void) {
     return arm64_bti_support_level() != ID_AA64PFR1_EL1_BTI_NOT_SUPPORTED;
 }
+#endif
