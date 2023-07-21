@@ -21,21 +21,11 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <arch/arm64/sregs.h>
 #include <arch/arm64.h>
 #include <arch/ops.h>
 #include <inttypes.h>
-
-#define ID_AA64PFR0_EL1_SVE_SHIFT 32u
-#define ID_AA64PFR0_EL1_SVE_MASK 0xf
-#define ID_AA64PFR0_EL1_SVE_SUPPORTED 0x1u
-
-#define CPACR_EL1_FPEN_SHIFT 20u
-#define CPACR_EL1_FPEN_SVE_ENABLE 0x3
-#define CPACR_EL1_FPEN_SVE_DISABLE 0x0
-
-#define CPACR_EL1_ZEN_SHIFT 16u
-#define CPACR_EL1_ZEN_SVE_ENABLE 0x3
-#define CPACR_EL1_ZEN_SVE_DISABLE 0x0
+#include <stdbool.h>
 
 bool arch_sve_supported(void) {
     uint64_t v = ARM64_READ_SYSREG(id_aa64pfr0_el1);

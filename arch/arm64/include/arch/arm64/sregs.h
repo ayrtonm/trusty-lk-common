@@ -39,6 +39,18 @@
 #define APGAKeyHi_EL1		s3_0_c2_c3_1
 
 /*
+ * CPACR_EL1 - Architectural Feature Access Control Register
+ */
+
+#define CPACR_EL1_FPEN_SHIFT 20u
+#define CPACR_EL1_FPEN_SVE_ENABLE 0x3
+#define CPACR_EL1_FPEN_SVE_DISABLE 0x0
+
+#define CPACR_EL1_ZEN_SHIFT 16u
+#define CPACR_EL1_ZEN_SVE_ENABLE 0x3
+#define CPACR_EL1_ZEN_SVE_DISABLE 0x0
+
+/*
  * SCTLR_EL1 bits
  */
 
@@ -77,10 +89,18 @@
 #define ID_AA64ISAR2_EL1_GPA3_MASK 0xf4
 
 /*
+ * ID_AA64PFR0 - AArch64 Processor Feature Register 0
+ */
+
+#define ID_AA64PFR0_EL1_SVE_SHIFT 32u
+#define ID_AA64PFR0_EL1_SVE_MASK 0xf
+#define ID_AA64PFR0_EL1_SVE_SUPPORTED 0x1u
+
+/*
  * ID_AA64PFR1_EL1 - AArch64 Processor Feature Register 1
  */
+
 #define ID_AA64PFR1_EL1_BTI_SHIFT 0u
 #define ID_AA64PFR1_EL1_BIT_MASK 0xfu
 #define ID_AA64PFR1_EL1_BTI_NOT_SUPPORTED 0x0u
 #define ID_AA64PFR1_EL1_BTI_SUPPORTED 0x1u
-
