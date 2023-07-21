@@ -517,6 +517,19 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
                    "PC at 0x%" PRIx64 "(0x%lx)\n", BITS(iss, 1, 0), iframe->elr, display_pc);
             break;
         }
+        case 0b011100: { /* FPAC exception */
+#if TEST_BUILD
+            if (check_fault_handler_table(iframe)) {
+                return;
+            }
+#endif
+            printf("PAC auth failure target exception: instr_type=%c%c, "
+                   "PC at 0x%" PRIx64 "(0x%lx)\n",
+                   BIT(iss, 1) ? 'D' : 'I',  /* data / instruction */
+                   BIT(iss, 0) ? 'B' : 'A',  /* key */
+                   iframe->elr, display_pc);
+            break;
+        }
         case 0b111100: {
             printf("BRK #0x%04lx instruction: PC at 0x%" PRIx64 "(0x%lx)\n",
                    BITS_SHIFT(iss, 15, 0), iframe->elr, display_pc);
