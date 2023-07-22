@@ -890,6 +890,15 @@ static void thread_resched(void) {
     thread_check_cookie(newthread);
 
     /*
+     * These threads are already on the runqueues so these checks should pass
+     * unless an existing thread struct was corrupted. If that is the case, the
+     * thread cookies do not help much as an adversary could corrupt the
+     * register file for that thread instead.
+     */
+    thread_check_cookie(current_thread);
+    thread_check_cookie(newthread);
+
+    /*
      * The current_thread is switched out from a given cpu,
      * however its pinned cpu may have changed and if so,
      * this current_thread should be scheduled on that new cpu.
