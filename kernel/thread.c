@@ -887,8 +887,6 @@ static void thread_resched(void) {
 
     newthread = get_top_thread(cpu, true);
 
-    thread_check_cookie(newthread);
-
     /*
      * The current_thread is switched out from a given cpu,
      * however its pinned cpu may have changed and if so,
@@ -988,6 +986,8 @@ static void thread_resched(void) {
     cpu_priority[cpu] = newthread->priority;
     platform_cpu_priority_set(cpu, newthread->priority);
     set_current_thread(newthread);
+
+    thread_check_cookie(newthread);
 
 #if DEBUG_THREAD_CONTEXT_SWITCH
     dprintf(ALWAYS, "arch_context_switch: cpu %d, old %p (%s, pri %d, flags 0x%x), new %p (%s, pri %d, flags 0x%x)\n",
