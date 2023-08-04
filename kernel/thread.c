@@ -644,8 +644,6 @@ void thread_exit(int retcode)
 
     thread_check_cookie(current_thread);
 
-    thread_check_cookie(current_thread);
-
 //  dprintf("thread_exit: current %p\n", current_thread);
 
     THREAD_LOCK(state);
@@ -889,15 +887,6 @@ static void thread_resched(void) {
 
     newthread = get_top_thread(cpu, true);
 
-    thread_check_cookie(newthread);
-
-    /*
-     * These threads are already on the runqueues so these checks should pass
-     * unless an existing thread struct was corrupted. If that is the case, the
-     * thread cookies do not help much as an adversary could corrupt the
-     * register file for that thread instead.
-     */
-    thread_check_cookie(current_thread);
     thread_check_cookie(newthread);
 
     /*
