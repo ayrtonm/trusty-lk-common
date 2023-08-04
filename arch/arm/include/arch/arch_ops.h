@@ -481,6 +481,15 @@ static inline uint32_t arch_cycle_count(void) { return _arch_cycle_count(); }
 
 #endif
 
+/**
+ * arch_extract_return_addr - process LR to remove any memory tags
+ *
+ * Return: lr is returned without modification.
+ */
+static inline uintptr_t arch_extract_return_addr(uintptr_t lr) {
+    return lr;
+}
+
 #define mb()        DSB
 #define wmb()       DSB
 #define rmb()       DSB
