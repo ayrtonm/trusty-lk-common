@@ -20,6 +20,8 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#include <arch/arm64/sregs.h>
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,6 +29,7 @@
 #include <trace.h>
 #include <kernel/thread.h>
 #include <arch/arm64.h>
+#include <platform/random.h>
 
 #define LOCAL_TRACE 0
 
@@ -71,7 +74,7 @@ static void initial_thread_func(void)
     thread_exit(ret);
 }
 
-void arch_init_thread_initialize(struct thread *thread, uint cpu)
+__ARCH_NO_PAC void arch_init_thread_initialize(struct thread *thread, uint cpu)
 {
     extern uint8_t __stack_end[];
     size_t stack_size = ARCH_DEFAULT_STACK_SIZE;
@@ -86,6 +89,33 @@ void arch_init_thread_initialize(struct thread *thread, uint cpu)
     thread->shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
 #endif
 
+    if (arch_pac_address_supported()) {
+        uint64_t sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
+
+        sctlr_el1 &= ~(SCTLR_EL1_ENIA | SCTLR_EL1_ENIB | SCTLR_EL1_ENDA | SCTLR_EL1_ENDB);
+
+#if KERNEL_PAC_ENABLED
+        /* Generate and load the instruction A key */
+        platform_random_get_bytes((void *)thread->arch.packeys.apia,
+                                  sizeof(thread->arch.packeys.apia));
+
+        ARM64_WRITE_SYSREG_RAW(APIAKeyLo_EL1, thread->arch.packeys.apia[0]);
+        ARM64_WRITE_SYSREG_RAW(APIAKeyHi_EL1, thread->arch.packeys.apia[1]);
+
+        /*
+         * Enable only the A key for use in EL1 and EL0.
+         * PAuth instructions are NOPs for disabled keys.
+         */
+        sctlr_el1 |= SCTLR_EL1_ENIA;
+#endif
+        /* Ensure PACIxSP are valid BR jump targets in EL0 & EL1 */
+        if (arch_bti_supported()) {
+            sctlr_el1 &= ~(SCTLR_EL1_BT0 | SCTLR_EL1_BT1);
+        }
+
+        ARM64_WRITE_SYSREG_RAW(SCTLR_EL1, sctlr_el1);
+        ISB;
+    }
 }
 
 void arch_thread_initialize(thread_t *t)
@@ -110,15 +140,39 @@ void arch_thread_initialize(thread_t *t)
 #if KERNEL_SCS_ENABLED
     frame->r18 = (vaddr_t)t->shadow_stack;
 #endif
+#if KERNEL_PAC_ENABLED
+    /* Allocate PAC keys */
+    if (arch_pac_address_supported()) {
+        platform_random_get_bytes((void *)t->arch.packeys.apia,
+                                  sizeof(t->arch.packeys.apia));
+    }
+#endif
 }
 
-void arch_context_switch(thread_t *oldthread, thread_t *newthread)
+/*
+ * Switch context from one thread to another.
+ * This function produces an non-PAC protected stack frame to enable switching.
+ */
+__ARCH_NO_PAC __NO_INLINE void arch_context_switch(thread_t *oldthread, thread_t *newthread)
 {
     LTRACEF("old %p (%s), new %p (%s)\n", oldthread, oldthread->name, newthread, newthread->name);
     arm64_fpu_pre_context_switch(oldthread);
 #if WITH_SMP
     DSB; /* broadcast tlb operations in case the thread moves to another cpu */
 #endif
+#if KERNEL_PAC_ENABLED
+    /* Set new PAC key if supported */
+    if (arch_pac_address_supported()) {
+        ARM64_WRITE_SYSREG_RAW(APIAKeyLo_EL1, newthread->arch.packeys.apia[0]);
+        ARM64_WRITE_SYSREG_RAW(APIAKeyHi_EL1, newthread->arch.packeys.apia[1]);
+        ISB;
+    }
+#endif
+    /*
+     * Call the assembly helper.  As a tail-call, lr will point to this
+     * function's caller, which due to __ARCH_NO_PAC and __NO_INLINE will not
+     * have a PAC - if PAC is enabled.
+     */
     arm64_context_switch(&oldthread->arch.sp, newthread->arch.sp);
 }
 

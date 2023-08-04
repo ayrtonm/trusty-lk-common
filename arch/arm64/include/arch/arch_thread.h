@@ -31,8 +31,18 @@ struct fpstate {
     uint        current_cpu;
 };
 
+#if KERNEL_PAC_ENABLED
+struct packeys {
+    /* Trusty only uses the instruction A key at present */
+    uint64_t apia[2]; /* APIAKeyHi_EL1:APIAKeyLo_EL1 */
+};
+#endif
+
 struct arch_thread {
     vaddr_t sp;
     struct fpstate fpstate;
+#if KERNEL_PAC_ENABLED
+    struct packeys packeys;
+#endif
 };
 

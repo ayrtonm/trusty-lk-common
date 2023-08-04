@@ -123,9 +123,31 @@ endif
 
 # Branch Target Identification
 ifeq (true,$(call TOBOOL,$(KERNEL_BTI_ENABLED)))
-MODULE_COMPILEFLAGS += -mbranch-protection=bti \
-                       -DKERNEL_BTI_ENABLED \
+MODULE_COMPILEFLAGS += -DKERNEL_BTI_ENABLED \
                        -DBTI_ENABLED
+endif
+
+# Pointer Authentication Codes
+ifeq (true,$(call TOBOOL,$(KERNEL_PAC_ENABLED)))
+ifeq (true,$(call TOBOOL,$(SCS_ENABLED)))
+# See https://github.com/llvm/llvm-project/issues/63457
+$(error Error: Kernel shadow call stack is not supported when Kernel PAC is enabled)
+endif
+
+MODULE_COMPILEFLAGS += -DKERNEL_PAC_ENABLED
+endif
+
+# Decide on the branch protection scheme
+ifeq (true,$(call TOBOOL,$(KERNEL_BTI_ENABLED)))
+ifeq (true,$(call TOBOOL,$(KERNEL_PAC_ENABLED)))
+MODULE_COMPILEFLAGS += -mbranch-protection=bti+pac-ret
+else
+MODULE_COMPILEFLAGS += -mbranch-protection=bti
+endif
+else # !KERNEL_BTI_ENABLED
+ifeq (true,$(call TOBOOL,$(KERNEL_PAC_ENABLED)))
+MODULE_COMPILEFLAGS += -mbranch-protection=pac-ret
+endif
 endif
 
 # Shadow call stack

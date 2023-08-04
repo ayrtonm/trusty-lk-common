@@ -1251,11 +1251,13 @@ void thread_sleep_until_ns(lk_time_ns_t target_time_ns)
 }
 
 /**
- * @brief  Initialize threading system
+ * @brief  Initialize threading system on primary CPU
  *
- * This function is called once, from kmain()
+ * This function is called once, from kmain().
+ * Disable PAC protection in case the arch enables PAC.  Suggest inlining to
+ * avoid creating a non-PAC function if possible (inlining requires LTO).
  */
-void thread_init_early(void)
+__ARCH_NO_PAC __ALWAYS_INLINE void thread_init_early(void)
 {
     int i;
 
@@ -1552,9 +1554,14 @@ void thread_become_idle(void)
     idle_thread_routine();
 }
 
-/* create an idle thread for the cpu we're on, and start scheduling */
-
-void thread_secondary_cpu_init_early(void)
+/**
+ * @brief  Initialize threading system on secondary CPUs
+ *
+ * This function is called once per CPU, from lk_secondary_cpu_entry().
+ * Disable PAC protection in case the arch enables PAC.  Suggest inlining to
+ * avoid creating a non-PAC function if possible (inlining requires LTO).
+ */
+__ARCH_NO_PAC __ALWAYS_INLINE void thread_secondary_cpu_init_early(void)
 {
     DEBUG_ASSERT(arch_ints_disabled());
 
