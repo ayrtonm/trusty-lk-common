@@ -644,6 +644,8 @@ void thread_exit(int retcode)
 
     thread_check_cookie(current_thread);
 
+    thread_check_cookie(current_thread);
+
 //  dprintf("thread_exit: current %p\n", current_thread);
 
     THREAD_LOCK(state);
