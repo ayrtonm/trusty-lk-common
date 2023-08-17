@@ -117,6 +117,7 @@ static void timer_set(timer_t *timer, lk_time_ns_t delay, lk_time_ns_t period,
      * running.
      */
     DEBUG_ASSERT(!timer->running || timer->cpu == cpu);
+    DEBUG_ASSERT(cpu < SMP_MAX_CPUS);
 
     timer->cpu = cpu;
 
@@ -211,6 +212,7 @@ void timer_cancel_etc(timer_t *timer, bool wait)
 
 #if PLATFORM_HAS_DYNAMIC_TIMER
     uint cpu = arch_curr_cpu_num(); /* cpu could have changed in thread_yield */
+    DEBUG_ASSERT(cpu < SMP_MAX_CPUS);
 
     timer_t *oldhead = list_peek_head_type(&timers[cpu].timer_queue, timer_t, node);
 #endif
@@ -258,6 +260,7 @@ static enum handler_return timer_tick(void *arg, lk_time_ns_t now)
 //  KEVLOG_TIMER_TICK(); // enable only if necessary
 
     uint cpu = arch_curr_cpu_num();
+    DEBUG_ASSERT(cpu < SMP_MAX_CPUS);
 
     LTRACEF("cpu %u now %llu, fp %p\n", cpu, now, __GET_FRAME());
 
