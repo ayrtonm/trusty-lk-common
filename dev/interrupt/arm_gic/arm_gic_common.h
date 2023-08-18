@@ -247,7 +247,7 @@ GEN_CP15_REG64_FUNCS(icc_sgi0r_el1, 2, c12);
 #define GICR_CPU_OFFSET(cpu) ((cpu) * 0x20000)
 #endif
 #if GIC_VERSION == 4
-#define GICR_CPU_OFFSET(cpu) ((cpu) * 0x30000)
+#define GICR_CPU_OFFSET(cpu) ((cpu) * 0x40000)
 #endif
 
 #ifndef GICR_OFFSET
