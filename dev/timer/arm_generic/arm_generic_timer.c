@@ -236,16 +236,6 @@ lk_time_t current_time(void)
     return cntpct_to_lk_time(read_cntpct());
 }
 
-static uint32_t abs_int32(int32_t a)
-{
-    return (a > 0) ? a : -a;
-}
-
-static uint64_t abs_int64(int64_t a)
-{
-    return (a > 0) ? a : -a;
-}
-
 static uint64_t uint64_sub_ignore_overflow(uint64_t a, uint64_t b) {
     uint64_t res;
     __builtin_sub_overflow(a, b, &res);
@@ -254,14 +244,18 @@ static uint64_t uint64_sub_ignore_overflow(uint64_t a, uint64_t b) {
 
 static void test_time_conversion_check_result(uint64_t a, uint64_t b, uint64_t limit, bool is32)
 {
-    if (a != b) {
+    /* Check limit will not overflow if converted to signed type */
+    if (limit > (uint64_t)INT64_MAX) {
+        TRACEF("ERROR, limit too large\n");
+    } else if (a != b) {
+        const int64_t slimit = (int64_t)limit;
         uint64_t a_minus_b = uint64_sub_ignore_overflow(a, b);
-        uint64_t diff = is32 ? abs_int32((int32_t)a_minus_b) :
-                               abs_int64((int64_t)a_minus_b);
-        if (diff <= limit)
-            LTRACEF("ROUNDED by %" PRIu64 " (up to %" PRIu64 " allowed)\n", diff, limit);
+        int64_t diff = is32 ? (int32_t)a_minus_b : (int64_t)a_minus_b;
+
+        if (diff >= -slimit && diff <= slimit)
+            LTRACEF("ROUNDED by %" PRId64 " (up to +/-%" PRIu64 " allowed)\n", diff, limit);
         else
-            TRACEF("FAIL, off by %" PRIu64 "\n", diff);
+            TRACEF("FAIL, off by %" PRId64 "\n", diff);
     }
 }
 
