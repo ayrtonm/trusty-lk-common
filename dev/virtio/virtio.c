@@ -72,10 +72,10 @@ static void dump_mmio_config(const volatile struct virtio_mmio_config *mmio)
 void virtio_dump_desc(const struct vring_desc *desc)
 {
     printf("vring descriptor %p\n", desc);
-    printf("\taddr  0x%llx\n", desc->addr);
+    printf("\taddr  0x%" PRIx64 "\n", desc->addr);
     printf("\tlen   0x%x\n", desc->len);
-    printf("\tflags 0x%hhx\n", desc->flags);
-    printf("\tnext  0x%hhx\n", desc->next);
+    printf("\tflags 0x%" PRIx16 "\n", desc->flags);
+    printf("\tnext  0x%" PRIx16 "\n", desc->next);
 }
 
 static enum handler_return virtio_mmio_irq(void *arg)
@@ -97,7 +97,8 @@ static enum handler_return virtio_mmio_irq(void *arg)
                 continue;
 
             struct vring *ring = &dev->ring[r];
-            LTRACEF("ring %u: used flags 0x%hhx idx 0x%hhx last_used %u\n", r, ring->used->flags, ring->used->idx, ring->last_used);
+            LTRACEF("ring %u: used flags 0x%" PRIx16 " idx 0x%" PRIx16 " last_used %u\n",
+                    r, ring->used->flags, ring->used->idx, ring->last_used);
 
             uint cur_idx = ring->used->idx;
             for (uint i = ring->last_used; i != (cur_idx & ring->num_mask); i = (i + 1) & ring->num_mask) {
@@ -354,7 +355,7 @@ status_t virtio_alloc_ring(struct virtio_device *dev, uint index, uint16_t len)
         return ERR_NO_MEMORY;
     }
 
-    LTRACEF("virtio_ring at pa 0x%lx\n", pa);
+    LTRACEF("virtio_ring at pa 0x%" PRIxPADDR "\n", pa);
 #else
     void *vptr = memalign(PAGE_SIZE, size);
     if (!vptr)
