@@ -32,9 +32,14 @@
 #endif
 
 #define PIC1_BASE_INTR INT_PIT
+#define PIC2_CASCADE_INTR (PIC1_BASE_INTR + 2)
+#define PIC2_BASE_INTR (PIC1_BASE_INTR + 8)
+#define AFTER_PIC_INTR (PIC2_BASE_INTR + 8)
 #define PIC1 0x20
 #define PIC2 0xA0
-#define ICW1 0x13 /* SINGLE mode, ICW4 needed */
+#define ICW1 0x11 /* Cascade mode, ICW4 needed */
+#define ICW3_PIC1 4
+#define ICW3_PIC2 2
 #define ICW4 0x5  /* Non buffered mode, 8086 mode */
 #define PIC_EOI 0x20
 
