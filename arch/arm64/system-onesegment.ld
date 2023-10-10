@@ -1,7 +1,9 @@
 OUTPUT_FORMAT("elf64-littleaarch64", "elf64-bigaarch64", "elf64-littleaarch64")
 OUTPUT_ARCH(aarch64)
 
-ENTRY(_start)
+_start_phys = _start - %KERNEL_BASE% + %MEMBASE%;
+ENTRY(_start_phys)
+
 SECTIONS
 {
     . = %KERNEL_BASE% + %KERNEL_LOAD_OFFSET%;
