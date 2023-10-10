@@ -307,7 +307,7 @@ void virtio_submit_chain(struct virtio_device *dev, uint ring_index, uint16_t de
     struct vring_avail *avail = dev->ring[ring_index].avail;
 
     avail->ring[avail->idx & dev->ring[ring_index].num_mask] = desc_index;
-    DSB;
+    mb();
     avail->idx++;
 
 #if LOCAL_TRACE
@@ -320,7 +320,7 @@ void virtio_kick(struct virtio_device *dev, uint ring_index)
     LTRACEF("dev %p, ring %u\n", dev, ring_index);
 
     dev->mmio_config->queue_notify = ring_index;
-    DSB;
+    mb();
 }
 
 status_t virtio_alloc_ring(struct virtio_device *dev, uint index, uint16_t len)
