@@ -23,7 +23,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-ENTRY(_start)
+_start_phys = _start - %KERNEL_BASE% + %MEMBASE%;
+ENTRY(_start_phys)
 SECTIONS
 {
     . = %KERNEL_BASE% + %KERNEL_LOAD_OFFSET%;
