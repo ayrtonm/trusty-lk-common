@@ -70,7 +70,7 @@ static inline vaddr_t adjusted_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
 static inline bool is_valid_vaddr(arch_aspace_t *aspace, vaddr_t vaddr)
 {
     vaddr = adjusted_vaddr(aspace, vaddr);
-    return (vaddr >= aspace->base && vaddr <= aspace->base + (aspace->size - 1));
+    return (aspace->size && vaddr >= aspace->base && vaddr <= aspace->base + (aspace->size - 1));
 }
 
 /* convert user level mmu flags to flags that go in L1 descriptors */
