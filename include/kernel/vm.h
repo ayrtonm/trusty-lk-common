@@ -387,6 +387,22 @@ static inline vmm_aspace_t *vmm_get_kernel_aspace(void)
 struct vmm_aspace *vaddr_to_aspace(void *ptr);
 
 /**
+ * vmm_lock_aspace() - Lock an address space so memory mapping can't change
+ * @aspace: The address space to lock
+ *
+ * Prevents changes to address space. Current implementation will lock all
+ * address spaces.
+ */
+void vmm_lock_aspace(vmm_aspace_t *aspace);
+
+/**
+ * vmm_unlock_aspace() - Release lock on address space
+ * @aspace: The address space to unlock
+ */
+void vmm_unlock_aspace(vmm_aspace_t *aspace);
+
+
+/**
  * vmm_find_spot() - Finds a gap of the requested size in the address space
  * @aspace: The address space to locate a gap in
  * @size:   How large of a gap is sought
