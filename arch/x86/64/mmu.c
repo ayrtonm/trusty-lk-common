@@ -61,24 +61,20 @@ paddr_t x86_kernel_page_table = 0;
  * entry in pd(Page directory) covers 2MB,
  * entry in pt(Page table) covers 4KB.
  *
- * pml4_trampoline->pdpt_trampoline_low->pd_trampoline_low->pt_trampoline
+ * pml4_trampoline->pdpt_trampoline->pd_trampoline->pt_trampoline
  * covers VA (from ~ end):
  *   MEMBASE+KERNEL_LOAD_OFFSET ~ MEMBASE+KERNEL_LOAD_OFFSET + 1 PAGE
  * and
- *   PHYS(_gdt) ~ PHYS(_gdt) + 1 PAGE
- *
- * pml4_trampoline->pdpt_trampoline_high->pd_trampoline_high->pt_trampoline
+ * pml4_trampoline->pdpt_trampoline->pd_trampoline->pt_trampoline_gdt
  * covers VA (from ~ end):
- *   KERNEL_BASE+KERNEL_LOAD_OFFSET ~ KERNEL_BASE+KERNEL_LOAD_OFFSET+1 PAGE
- * and
- *   PHYS(_gdt) ~ PHYS(_gdt) + 1 PAGE
+ *   PHYS(_gdtr_phys) ~ PHYS(_gdtr_phys) + 1 PAGE
+ *
  */
 map_addr_t pml4_trampoline[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-map_addr_t pdpt_trampoline_low[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-map_addr_t pd_trampoline_low[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-map_addr_t pdpt_trampoline_high[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
-map_addr_t pd_trampoline_high[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
+map_addr_t pdpt_trampoline[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
+map_addr_t pd_trampoline[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
 map_addr_t pt_trampoline[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
+map_addr_t pt_trampoline_gdt[NO_OF_PT_ENTRIES] __ALIGNED(PAGE_SIZE);
 
 /*
  * Page table 2:
