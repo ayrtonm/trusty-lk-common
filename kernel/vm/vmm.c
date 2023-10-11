@@ -45,6 +45,14 @@ vmm_aspace_t _kernel_aspace;
 static void dump_aspace(const vmm_aspace_t* a);
 static void dump_region(const vmm_region_t* r);
 
+void vmm_lock_aspace(vmm_aspace_t *aspace) {
+    mutex_acquire(&vmm_lock);
+}
+
+void vmm_unlock_aspace(vmm_aspace_t *aspace) {
+    mutex_release(&vmm_lock);
+}
+
 static inline uint get_arch_aspace_flags(const uint vmm_aspace_flags) {
     uint arch_flags = 0;
 
