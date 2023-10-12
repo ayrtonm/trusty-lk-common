@@ -153,6 +153,7 @@ TARGET :=
 PLATFORM :=
 ARCH :=
 ALLMODULES :=
+ALLMODULE_CRATE_NAMES :=
 
 # add any external module dependencies
 MODULES := $(EXTERNAL_MODULES)
@@ -418,6 +419,9 @@ LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_AR
 
 # try to have the compiler output colorized error messages if available
 export GCC_COLORS ?= 1
+
+# link all rust rlibs into a single top-level .a
+include make/rust-toplevel.mk
 
 # the logic to compile and link stuff is in here
 include make/build.mk

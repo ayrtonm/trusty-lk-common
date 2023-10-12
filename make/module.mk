@@ -218,6 +218,9 @@ MODULES += $(MODULE_KERNEL_RUST_DEPS)
 # so we must manually read the variable value from the Makefile
 DEP_CRATE_NAMES = $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(call READ_CRATE_NAME,$(dep)/rules.mk))
 
+# save dep crate names so we can topologically sort then for top-level rust build
+MODULE_$(MODULE_CRATE_NAME)_CRATE_DEPS := $(DEP_CRATE_NAMES)
+
 # change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
 OLD_BUILDDIR := $(BUILDDIR)
 BUILDDIR := $(BUILDDIR)/kernellib
@@ -278,6 +281,9 @@ endif
 
 # track the module rlib for make clean
 GENERATED += $(MODULE_RSOBJS)
+
+# accumulate list of all crates we built
+ALLMODULE_CRATE_NAMES := $(MODULE_CRATE_NAME) $(ALLMODULE_CRATE_NAMES)
 
 else # not rust
 # Archive the module's object files into a static library.
