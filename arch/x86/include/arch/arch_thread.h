@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2009 Corey Tabaka
- * Copyright (c) 2015 Intel Corporation
+ * Copyright (c) 2015-2018 Intel Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -24,6 +24,18 @@
 #pragma once
 
 #include <sys/types.h>
+
+#define IF_MASK             0x0200
+#define IOPL_MASK           0x3000
+#define RSVD                0x0002
+
+/* 0x3202 */
+#define USER_EFLAGS (IF_MASK|IOPL_MASK|RSVD)
+
+/* SYSCALL Handling */
+#define SYSENTER_CS_MSR     0x174
+#define SYSENTER_ESP_MSR    0x175
+#define SYSENTER_EIP_MSR    0x176
 
 struct arch_thread {
     vaddr_t sp;
