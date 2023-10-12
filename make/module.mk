@@ -171,8 +171,10 @@ endif
 # Rebuild every module if the toolchain changes
 MODULE_SRCDEPS += $(TOOLCHAIN_CONFIG)
 
+MODULE_IS_RUST := $(if $(filter %.rs,$(MODULE_SRCS)),true,false)
+
 # generate a per-module config.h file
-ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),false)
+ifeq ($(MODULE_IS_RUST),false)
 MODULE_CONFIG := $(MODULE_BUILDDIR)/module_config.h
 
 $(MODULE_CONFIG): MODULE_DEFINES:=$(MODULE_DEFINES)
@@ -184,9 +186,9 @@ GENERATED += $(MODULE_CONFIG)
 MODULE_COMPILEFLAGS += --include $(MODULE_CONFIG)
 
 MODULE_SRCDEPS += $(MODULE_CONFIG)
-endif
 
 MODULE_INCLUDES := $(addprefix -I,$(MODULE_INCLUDES))
+endif
 
 # include the rules to compile the module's object files
 include make/compile.mk
@@ -194,7 +196,59 @@ include make/compile.mk
 # MODULE_OBJS is passed back from compile.mk
 #$(info MODULE_OBJS = $(MODULE_OBJS))
 
-ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
+ifeq ($(MODULE_IS_RUST),true)
+
+# is module a kernel module? (using module.mk directly)
+ifeq ($(LIB_SAVED_MODULE),)
+
+# validate crate name
+ifeq ($(MODULE_CRATE_NAME),)
+$(error rust module $(MODULE) does not set MODULE_CRATE_NAME. It must be set with a simple assignment, i.e. "MODULE_CRATE_NAME := foo")
+endif
+
+# if specific kernel rust deps not specified, rust modules use other deps. only
+# one of these two should be set, so this just uses the non-empty one
+MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_DEPS)
+
+# add rust deps to the set of modules
+MODULES += $(MODULE_KERNEL_RUST_DEPS)
+
+# determine crate names of dependency modules so we can depend on their rlibs.
+# because of ordering, we cannot simply e.g. set/read MODULE_$(dep)_CRATE_NAME,
+# so we must manually read the variable value from the Makefile
+DEP_CRATE_NAMES = $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(call READ_CRATE_NAME,$(dep)/rules.mk))
+
+# change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
+OLD_BUILDDIR := $(BUILDDIR)
+BUILDDIR := $(BUILDDIR)/kernellib
+
+# compute paths of dependencies
+MODULE_KERNEL_RUST_LIBS := $(foreach dep, $(DEP_CRATE_NAMES), $(call TOBUILDDIR,lib$(dep).rlib))
+MODULE_RLIBS += $(foreach dep, $(DEP_CRATE_NAMES), $(dep)=$(call TOBUILDDIR,lib$(dep).rlib))
+
+# include rust lib deps in lib deps
+MODULE_LIBRARIES += $(MODULE_KERNEL_RUST_LIBS)
+
+# determine MODULE_RSOBJS and MODULE_RUST_CRATE_TYPES for rust kernel modules
+include make/rust.mk
+
+# only allow rlibs because we build rlibs, then link them all into one .a
+ifneq ($(MODULE_RUST_CRATE_TYPES),rlib)
+$(error rust crates for the kernel must be built as rlibs only, but $(MODULE) builds $(MODULE_RUST_CRATE_TYPES))
+endif
+
+# reset BUILDDIR
+BUILDDIR := $(OLD_BUILDDIR)
+
+else # userspace rust
+
+MODULE_OBJECT := $(MODULE_RSOBJS)
+
+# make the rest of the build depend on our output
+ALLMODULE_OBJS := $(MODULE_INIT_OBJS) $(ALLMODULE_OBJS) $(MODULE_OBJECT) $(MODULE_EXTRA_ARCHIVES)
+
+endif # kernel/userspace rust
+
 # Build Rust sources
 $(addsuffix .d,$(MODULE_RSOBJS)):
 
@@ -222,9 +276,10 @@ endif
 
 -include $(addsuffix .d,$(MODULE_RSOBJS))
 
-MODULE_OBJECT := $(MODULE_RSOBJS)
+# track the module rlib for make clean
+GENERATED += $(MODULE_RSOBJS)
 
-else
+else # not rust
 # Archive the module's object files into a static library.
 MODULE_OBJECT := $(call TOBUILDDIR,$(MODULE_SRCDIR).mod.a)
 $(MODULE_OBJECT): $(MODULE_OBJS) $(MODULE_EXTRA_OBJS)
@@ -233,13 +288,13 @@ $(MODULE_OBJECT): $(MODULE_OBJS) $(MODULE_EXTRA_OBJS)
 	$(NOECHO)rm -f $@
 	$(NOECHO)$(AR) rcs $@ $^
 
-endif
-
 # track the module object for make clean
 GENERATED += $(MODULE_OBJECT)
 
 # make the rest of the build depend on our output
 ALLMODULE_OBJS := $(MODULE_INIT_OBJS) $(ALLMODULE_OBJS) $(MODULE_OBJECT) $(MODULE_EXTRA_ARCHIVES)
+
+endif # rust or not
 
 # track all of the source files compiled
 ALLSRCS += $(MODULE_SRCS_FIRST) $(MODULE_SRCS)
@@ -276,6 +331,10 @@ MODULE_LTO_ENABLED :=
 MODULE_DISABLE_CFI :=
 MODULE_DISABLE_STACK_PROTECTOR :=
 MODULE_DISABLE_SCS :=
+MODULE_RSSRC :=
+MODULE_IS_RUST :=
 MODULE_RSOBJS :=
 MODULE_RUSTDOC_OBJECT :=
+MODULE_RUSTDOCFLAGS :=
+MODULE_KERNEL_RUST_DEPS :=
 MODULE_SKIP_DOCS :=
