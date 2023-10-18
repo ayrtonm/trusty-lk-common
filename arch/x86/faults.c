@@ -41,12 +41,23 @@
 #define INT_XM              0x13
 
 struct fault_handler_table_entry {
-    vaddr_t rip;
-    vaddr_t fault_handler;
+    int64_t rip;
+    int64_t fault_handler;
 };
 
 extern struct fault_handler_table_entry __fault_handler_table_start[];
 extern struct fault_handler_table_entry __fault_handler_table_end[];
+
+/**
+ * prel_to_abs_u64() - Convert a position-relative value to an absolute.
+ * @ptr: Pointer to a 64-bit position-relative value.
+ * @result: Pointer to the location for the result.
+ *
+ * Return: %true in case of success, %false for overflow.
+ */
+static inline bool prel_to_abs_u64(const int64_t* ptr, uint64_t* result) {
+    return !__builtin_add_overflow((uintptr_t)ptr, *ptr, result);
+}
 
 static bool check_fault_handler_table(x86_iframe_t *frame)
 {
@@ -55,8 +66,22 @@ static bool check_fault_handler_table(x86_iframe_t *frame)
     for (fault_handler = __fault_handler_table_start;
             fault_handler < __fault_handler_table_end;
             fault_handler++) {
-        if (fault_handler->rip == frame->ip) {
-            frame->ip = fault_handler->fault_handler;
+        uint64_t addr;
+        if (!prel_to_abs_u64(&fault_handler->rip, &addr)) {
+            /* Invalid entry, ignore it */
+            continue;
+        }
+        if (addr == frame->ip) {
+            if (!prel_to_abs_u64(&fault_handler->fault_handler, &addr)) {
+                /*
+                 * An entry with an invalid handler address. We don't expect
+                 * another entry with the same pc, so we break out of
+                 * the loop early.
+                 */
+                return false;
+            }
+
+            frame->ip = addr;
             return true;
         }
     }
