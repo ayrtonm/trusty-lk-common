@@ -40,7 +40,7 @@
 #define X86_MMU_CACHE_DISABLE   0x010       /* C Cache disable */
 
 /* default flags for inner page directory entries */
-#define X86_KERNEL_PD_FLAGS (X86_MMU_PG_G | X86_MMU_PG_RW | X86_MMU_PG_P)
+#define X86_KERNEL_PD_FLAGS (X86_MMU_PG_G | X86_MMU_PG_RW | X86_MMU_PG_P | X86_MMU_PG_U)
 
 /* default flags for 2MB/4MB/1GB page directory entries */
 #define X86_KERNEL_PD_LP_FLAGS (X86_MMU_PG_G | X86_MMU_PG_PS | X86_MMU_PG_RW | X86_MMU_PG_P)

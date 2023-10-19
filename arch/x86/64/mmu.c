@@ -404,9 +404,9 @@ static void update_pd_entry(vaddr_t vaddr, uint64_t pdpe, map_addr_t m, arch_fla
     pd_index = (((uint64_t)vaddr >> PD_SHIFT) & ((1ul << ADDR_OFFSET) - 1));
     pd_table[pd_index] = m;
     pd_table[pd_index] |= X86_MMU_PG_P | X86_MMU_PG_RW;
-    if (flags & X86_MMU_PG_U)
-        pd_table[pd_index] |= X86_MMU_PG_U;
-    else
+    DEBUG_ASSERT(!(pd_table[pd_index] & X86_MMU_PG_PS));
+    pd_table[pd_index] |= X86_MMU_PG_U; /* set U flag on all inner entries */
+    if (!(flags & X86_MMU_PG_U))
         pd_table[pd_index] |= X86_MMU_PG_G; /* setting global flag for kernel pages */
 }
 
@@ -418,9 +418,9 @@ static void update_pdp_entry(vaddr_t vaddr, uint64_t pml4e, map_addr_t m, arch_f
     pdp_index = (((uint64_t)vaddr >> PDP_SHIFT) & ((1ul << ADDR_OFFSET) - 1));
     pdp_table[pdp_index] = m;
     pdp_table[pdp_index] |= X86_MMU_PG_P | X86_MMU_PG_RW;
-    if (flags & X86_MMU_PG_U)
-        pdp_table[pdp_index] |= X86_MMU_PG_U;
-    else
+    DEBUG_ASSERT(!(pdp_table[pdp_index] & X86_MMU_PG_PS));
+    pdp_table[pdp_index] |= X86_MMU_PG_U; /* set U flag on all inner entries */
+    if (!(flags & X86_MMU_PG_U))
         pdp_table[pdp_index] |= X86_MMU_PG_G; /* setting global flag for kernel pages */
 }
 
@@ -432,9 +432,9 @@ static void update_pml4_entry(vaddr_t vaddr, addr_t pml4_addr, map_addr_t m, arc
     pml4_index = (((uint64_t)vaddr >> PML4_SHIFT) & ((1ul << ADDR_OFFSET) - 1));
     pml4_table[pml4_index] = m;
     pml4_table[pml4_index] |= X86_MMU_PG_P | X86_MMU_PG_RW;
-    if (flags & X86_MMU_PG_U)
-        pml4_table[pml4_index] |= X86_MMU_PG_U;
-    else
+    DEBUG_ASSERT(!(pml4_table[pml4_index] & X86_MMU_PG_PS));
+    pml4_table[pml4_index] |= X86_MMU_PG_U; /* set U flag on all inner entries */
+    if (!(flags & X86_MMU_PG_U))
         pml4_table[pml4_index] |= X86_MMU_PG_G; /* setting global flag for kernel pages */
 }
 
