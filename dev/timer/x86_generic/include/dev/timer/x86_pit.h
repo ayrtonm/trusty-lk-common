@@ -22,6 +22,5 @@
  */
 
 #pragma once
-#include <stdbool.h>
 
 void x86_init_pit(void);
