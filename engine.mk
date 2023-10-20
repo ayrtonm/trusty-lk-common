@@ -89,6 +89,7 @@ GLOBAL_SHARED_ASMFLAGS := -DASSEMBLY
 GLOBAL_LDFLAGS :=
 GLOBAL_SHARED_LDFLAGS :=
 GLOBAL_KERNEL_LDFLAGS :=
+GLOBAL_KERNEL_RUSTFLAGS :=
 
 # This function is referenced by the linker-generated exidx tables, but seems to
 # be being dropped before it is needed. Force it to be included in the link.
