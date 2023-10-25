@@ -408,6 +408,8 @@ static mp_cpu_mask_t thread_get_mp_reschedule_target(thread_t *current_thread, t
 
     target_cpu = (uint)t->pinned_cpu;
 
+    ASSERT(target_cpu < SMP_MAX_CPUS);
+
     if (t->priority < cpu_priority[target_cpu]) {
         /*
          * The thread is pinned to a cpu that is already running, or has already
