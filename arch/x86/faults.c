@@ -24,21 +24,11 @@
 #include <debug.h>
 #include <trace.h>
 #include <arch/x86.h>
+#include <arch/x86/exceptions.h>
 #include <arch/fpu.h>
 #include <kernel/thread.h>
 #include <platform.h>
 #include <inttypes.h>
-
-/* exceptions */
-#define INT_DIVIDE_0        0x00
-#define INT_DEBUG_EX        0x01
-#define INT_INVALID_OP      0x06
-#define INT_DEV_NA_EX       0x07
-#define INT_STACK_FAULT     0x0c
-#define INT_GP_FAULT        0x0d
-#define INT_PAGE_FAULT      0x0e
-#define INT_MF              0x10
-#define INT_XM              0x13
 
 struct fault_handler_table_entry {
     int64_t rip;
