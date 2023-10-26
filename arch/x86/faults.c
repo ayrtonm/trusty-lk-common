@@ -130,7 +130,7 @@ static void exception_die(x86_iframe_t *frame, const char *msg)
     dprintf(CRITICAL, "%s", msg);
     dump_fault_frame(frame);
 
-    platform_halt(HALT_ACTION_HALT, HALT_REASON_SW_PANIC);
+    panic("die");
     for (;;) {
         x86_cli();
         x86_hlt();
@@ -198,6 +198,7 @@ void x86_pfe_handler(x86_iframe_t *frame)
             case 5:
             case 6:
             case 7:
+            default:
 #ifdef PAGE_FAULT_DEBUG_INFO
                 thread_detach(current_thread);
 #else
@@ -213,6 +214,7 @@ void x86_pfe_handler(x86_iframe_t *frame)
             case 1:
             case 2:
             case 3:
+            default:
                 exception_die(frame, "Page Fault exception, halting\n");
                 break;
         }
