@@ -80,13 +80,23 @@ static bool doorbell_enabled;
 
 struct arm_gic arm_gics[NUM_ARM_GICS];
 
+static bool arm_gic_check_init(int irq)
+{
+    /* check if we have a vaddr for gicd, both gicv2 and gicv3/4 use this */
+    if (!arm_gics[0].gicd_vaddr) {
+        TRACEF("change to interrupt %d ignored before init\n", irq);
+        return false;
+    }
+    return true;
+}
+
 #if WITH_LIB_SM
 static bool arm_gic_non_secure_interrupts_frozen;
 
 static bool arm_gic_interrupt_change_allowed(int irq)
 {
     if (!arm_gic_non_secure_interrupts_frozen)
-        return true;
+        return arm_gic_check_init(irq);
 
     TRACEF("change to interrupt %d ignored after booting ns\n", irq);
     return false;
@@ -94,7 +104,7 @@ static bool arm_gic_interrupt_change_allowed(int irq)
 #else
 static bool arm_gic_interrupt_change_allowed(int irq)
 {
-    return true;
+    return arm_gic_check_init(irq);
 }
 #endif
 
