@@ -27,6 +27,7 @@
 #include <arch/x86/exceptions.h>
 #include <arch/fpu.h>
 #include <kernel/thread.h>
+#include <lib/trusty/trusty_app.h>
 #include <platform.h>
 #include <inttypes.h>
 
@@ -189,11 +190,8 @@ void x86_pfe_handler(x86_iframe_t *frame)
             case 6:
             case 7:
             default:
-#ifdef PAGE_FAULT_DEBUG_INFO
-                thread_detach(current_thread);
-#else
-                thread_exit(current_thread->retcode);
-#endif
+                arch_enable_ints();
+                trusty_app_crash(error_code);
                 break;
         }
     } else {
