@@ -39,6 +39,7 @@
 /* early stack */
 uint8_t _kstack[PAGE_SIZE] __ALIGNED(8);
 uint8_t _tss_start[SMP_MAX_CPUS][PAGE_SIZE] __ALIGNED(8);
+uint8_t _double_fault_stack[SMP_MAX_CPUS][PAGE_SIZE] __ALIGNED(8);
 
 /* save a pointer to the multiboot information coming in from whoever called us */
 /* make sure it lives in .data to avoid it being wiped out by bss clearing */
@@ -88,6 +89,21 @@ static void set_tss_segment_percpu(void)
 
     /* Syscall uses same stack with RSP0 in TSS */
     x86_write_gs_with_offset(SYSCALL_STACK_OFF, addr);
+
+    /*
+     * Exception and interrupt handlers share same stack with kernel context,
+     * if kernel stack is corrupted or misused, exception handler will
+     * continue to use this corrupted kernel stack, it hard to trace this
+     * error especially in Page Fault handler.
+     *
+     * In order to ensure Page Fault handler does not trigger an infinite loop,
+     * Interrupt Stack Table 1 (IST1) is dedicated to Double Fault handler.
+     * With this dedicated double fault stack, a Page Fault while the stack
+     * pointer is invalid, will trigger a double fault, that can then exit
+     * cleanly.
+     */
+    addr = (uint64_t)&_double_fault_stack[cpu_id + 1];
+    tss_base->ist1 = addr;
 }
 
 __WEAK void x86_syscall(void)

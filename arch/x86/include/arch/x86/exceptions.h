@@ -27,6 +27,7 @@
 #define INT_DEBUG_EX        0x01
 #define INT_INVALID_OP      0x06
 #define INT_DEV_NA_EX       0x07
+#define INT_DOUBLE_FAULT    0x08
 #define INT_STACK_FAULT     0x0c
 #define INT_GP_FAULT        0x0d
 #define INT_PAGE_FAULT      0x0e

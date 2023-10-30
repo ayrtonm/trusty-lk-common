@@ -241,6 +241,10 @@ void x86_exception_handler(x86_iframe_t *frame)
 #endif
             break;
 
+        case INT_DOUBLE_FAULT:
+            exception_die(frame, "double fault (kernel stack overflow?)\n");
+            break;
+
         case INT_MF: { /* x87 floating point math fault */
             uint16_t fsw;
             __asm__ __volatile__("fnstsw %0" : "=m" (fsw));
