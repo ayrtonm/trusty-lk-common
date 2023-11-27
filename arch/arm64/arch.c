@@ -119,7 +119,7 @@ void arch_enter_uspace(vaddr_t entry_point, vaddr_t user_stack_top, vaddr_t shad
     vaddr_t kernel_stack_top = (uintptr_t)ct->stack + ct->stack_size;
     kernel_stack_top = round_down(kernel_stack_top, 16);
 
-#if !USER_SCS_ENABLED
+#if !USER_SCS_SUPPORTED
     assert(shadow_stack_base == 0);
 #endif
 
