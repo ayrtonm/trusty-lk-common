@@ -26,7 +26,10 @@
 
 #include <arch/defines.h>
 
+/* Arithmetically select t or e based on c, to enable pre-processor evaluation */
 #define IFTE(c,t,e) (!!(c) * (t) | !(c) * (e))
+
+/* Arithmetically count leading zero's in passed value */
 #define NBITS01(n)      IFTE(n, 1, 0)
 #define NBITS02(n)      IFTE((n) >>  1,  1 + NBITS01((n) >>  1), NBITS01(n))
 #define NBITS04(n)      IFTE((n) >>  2,  2 + NBITS02((n) >>  2), NBITS02(n))
@@ -50,7 +53,7 @@
 #endif
 
 #ifndef MMU_USER_SIZE_SHIFT
-#define MMU_USER_SIZE_SHIFT 48
+#define MMU_USER_SIZE_SHIFT (NBITS(USER_ASPACE_SIZE))
 #endif
 
 #ifndef MMU_IDENT_SIZE_SHIFT
