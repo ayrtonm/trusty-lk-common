@@ -81,7 +81,7 @@ GLOBAL_SHARED_COMPILEFLAGS += -Werror -Wall -Wsign-compare -Wno-multichar -Wno-u
 GLOBAL_SHARED_COMPILEFLAGS += -fno-short-enums -fno-common
 GLOBAL_SHARED_COMPILEFLAGS += -fno-omit-frame-pointer
 GLOBAL_SHARED_CFLAGS := --std=c17 -Wstrict-prototypes -Wwrite-strings
-GLOBAL_SHARED_CPPFLAGS := --std=c++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics
+GLOBAL_SHARED_CPPFLAGS := --std=c++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics
 # c99 array designators are not part of C++, but they are convenient and help avoid errors.
 GLOBAL_SHARED_CPPFLAGS += -Wno-c99-designator
 #GLOBAL_CPPFLAGS += -Weffc++
