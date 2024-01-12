@@ -18,6 +18,9 @@ FIND_EXTERNAL = $(if $(wildcard external/trusty/$1),external/trusty/$1,external/
 # trusty/user/base/host/$CRATE and then trusty/user/base/lib/$CRATE-rust
 FIND_CRATE = $(if $(wildcard external/rust/crates/$1/rules.mk),external/rust/crates/$1,$(if $(wildcard trusty/user/base/host/$1/rules.mk),trusty/user/base/host/$1,$(if $(wildcard trusty/user/base/host/$1-rust/rules.mk),trusty/user/base/host/$1-rust,trusty/user/base/lib/$1-rust)))
 
+# checks if module with a given path exists
+FIND_MODULE = $(wildcard $1/rules.mk)$(wildcard $(addsuffix /$1/rules.mk,$(.INCLUDE_DIRS)))
+
 COMMA := ,
 EMPTY :=
 SPACE := $(EMPTY) $(EMPTY)
@@ -55,7 +58,6 @@ endef
 # generate a header file at $1 with an expanded variable in $2
 define MAKECONFIGHEADER
 	$(MKDIR); \
-	echo generating $1; \
 	rm -f $1.tmp; \
 	LDEF=`echo $1 | tr '/\\.-' '_' | sed "s/C++/CPP/g;s/c++/cpp/g"`; \
 	echo \#ifndef __$${LDEF}_H > $1.tmp; \
@@ -91,3 +93,32 @@ endif
 endif
 endif
 endef
+
+# prints task status message
+# Format: INFO/ECHO module, status, message
+ifneq ($(LOG_POSTPROCESSING),)
+# this output will be postprocessed by python later, insert extra markers
+# for easier parsing
+LOG_PREFIX=@log@
+LOG_DONE=@done@
+LOG_SDONE=@sdone@
+LOG_PRINT=@print@
+LOG_SEPARATOR=@:@
+LOG = $(info $(LOG_PREFIX)$(LOG_PRINT)$1)
+INFO = $(info $(LOG_PREFIX)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3)
+INFO_DONE = $(info $(LOG_PREFIX)$(LOG_DONE)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3)
+INFO_DONE_SILENT = $(info $(LOG_PREFIX)$(LOG_SDONE)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3)
+ECHO = echo $(LOG_PREFIX)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3
+ECHO_DONE = echo $(LOG_PREFIX)$(LOG_DONE)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3
+ECHO_DONE_SILENT = echo $(LOG_PREFIX)$(LOG_SDONE)$1$(LOG_SEPARATOR)$2$(LOG_SEPARATOR)$3
+else
+# just output as regular
+LOG = $(info $1)
+INFO = $(info $2 $3 for $1)
+INFO_DONE = $(info $2 $3 for $1)
+INFO_DONE_SILENT =
+ECHO = echo $2 $3
+ECHO_DONE = echo $2 $3
+ECHO_DONE_SILENT =
+endif
+

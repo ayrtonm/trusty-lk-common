@@ -55,6 +55,8 @@ MODULE_BUILDDIR := $(call TOBUILDDIR,$(MODULE_SRCDIR))
 # add a local include dir to the global include path
 GLOBAL_INCLUDES += $(MODULE_SRCDIR)/include
 
+$(foreach MOD,$(MODULE_DEPS), $(if $(call FIND_MODULE,$(MOD)),,$(error Module doesn't exist: $(MOD) (included from $(MODULE)))))
+
 # add the listed module deps to the global list
 MODULES += $(MODULE_DEPS)
 
@@ -178,7 +180,9 @@ ifeq ($(MODULE_IS_RUST),false)
 MODULE_CONFIG := $(MODULE_BUILDDIR)/module_config.h
 
 $(MODULE_CONFIG): MODULE_DEFINES:=$(MODULE_DEFINES)
+$(MODULE_CONFIG): MODULE:=$(MODULE)
 $(MODULE_CONFIG): configheader
+	@$(call INFO_DONE,$(MODULE),generating config header, $@)
 	@$(call MAKECONFIGHEADER,$@,MODULE_DEFINES)
 
 GENERATED += $(MODULE_CONFIG)
@@ -256,10 +260,12 @@ endif # kernel/userspace rust
 $(addsuffix .d,$(MODULE_RSOBJS)):
 
 MODULE_RSSRC := $(filter %.rs,$(MODULE_SRCS))
+$(MODULE_RSOBJS): MODULE := $(MODULE)
 $(MODULE_RSOBJS): $(MODULE_RSSRC) $(MODULE_SRCDEPS) $(MODULE_EXTRA_OBJECTS) $(MODULE_LIBRARIES) $(addsuffix .d,$(MODULE_RSOBJS))
 	@$(MKDIR)
-	@echo compiling rust module $<
+	@$(call ECHO,$(MODULE),compiling rust module,$<)
 	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTC) $(GLOBAL_RUSTFLAGS) $(ARCH_RUSTFLAGS) $(MODULE_RUSTFLAGS) $< --emit "dep-info=$@.d" -o $@
+	@$(call ECHO_DONE_SILENT,$(MODULE),compiling rust module,$<)
 
 ifneq ($(call TOBOOL,$(MODULE_SKIP_DOCS)),true)
 
@@ -269,9 +275,10 @@ ifneq ($(call TOBOOL,$(MODULE_SKIP_DOCS)),true)
 # to pick up dependencies that are proc macros and thus built in the host dir.
 $(MODULE_RUSTDOC_OBJECT): $(MODULE_RSSRC) | $(MODULE_RSOBJS)
 	@$(MKDIR)
-	@echo "generating documentation for $(MODULE_CRATE_NAME)"
+	@$(call ECHO,rustdoc,generating documentation,for $(MODULE_CRATE_NAME))
 	$(NOECHO)$(MODULE_RUST_ENV) $(RUSTDOC) $(GLOBAL_RUSTFLAGS) $(ARCH_RUSTFLAGS) $(MODULE_RUSTDOCFLAGS) -L $(TRUSTY_LIBRARY_BUILDDIR) --out-dir $(MODULE_RUSTDOC_OUT_DIR) $<
-	touch $@
+	@touch $@
+	@$(call ECHO_DONE_SILENT,rustdoc,generating documentation,for $(MODULE_CRATE_NAME))
 
 EXTRA_BUILDDEPS += $(MODULE_RUSTDOC_OBJECT)
 
@@ -288,11 +295,13 @@ ALLMODULE_CRATE_NAMES := $(MODULE_CRATE_NAME) $(ALLMODULE_CRATE_NAMES)
 else # not rust
 # Archive the module's object files into a static library.
 MODULE_OBJECT := $(call TOBUILDDIR,$(MODULE_SRCDIR).mod.a)
+$(MODULE_OBJECT): MODULE := $(MODULE)
 $(MODULE_OBJECT): $(MODULE_OBJS) $(MODULE_EXTRA_OBJS)
 	@$(MKDIR)
-	@echo creating $@
+	@$(call ECHO,$(MODULE),creating,$@)
 	$(NOECHO)rm -f $@
 	$(NOECHO)$(AR) rcs $@ $^
+	@$(call ECHO_DONE_SILENT,$(MODULE),creating,$@)
 
 # track the module object for make clean
 GENERATED += $(MODULE_OBJECT)
