@@ -65,6 +65,7 @@ OUTBIN := $(BUILDDIR)/lk.bin
 OUTELF := $(BUILDDIR)/lk.elf
 CONFIGHEADER := $(BUILDDIR)/config.h
 TOOLCHAIN_CONFIG := $(BUILDDIR)/toolchain.config
+TRUSTY_HOST_LIBRARY_BUILDDIR := $(BUILDDIR)/host_lib
 
 # Eliminate /usr/local/include and /usr/include to build kernel hermetically
 GLOBAL_KERNEL_COMPILEFLAGS += --sysroot=fake_sysroot
@@ -104,7 +105,7 @@ GLOBAL_LTO_COMPILEFLAGS += \
 	-fvisibility-inlines-hidden \
 
 # Rust flags for proc macros
-GLOBAL_HOST_RUSTFLAGS :=
+GLOBAL_HOST_RUSTFLAGS := -L "$(RUST_HOST_LIBDIR)" -L dependency=$(TRUSTY_HOST_LIBRARY_BUILDDIR)
 
 # Rust flags, based on the flags used in AOSP
 GLOBAL_SHARED_RUSTFLAGS := -C codegen-units=1 -C debuginfo=2 -C opt-level=3 -C relocation-model=pic
