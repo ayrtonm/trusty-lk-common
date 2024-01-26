@@ -32,6 +32,12 @@ endef
 
 STRIP_TRAILING_COMMA = $(if $(1),$(subst $(COMMA)END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA,,$(strip $(1))END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA))
 
+# return $1 with the first word removed
+rest-of-words = $(wordlist 2,$(words $1),$1)
+# map $1 onto zipped pairs of items from lists $2 and $3
+pairmap = $(and $(strip $2),$(strip $3),\
+	$(call $1,$(firstword $2),$(firstword $3)) $(call pairmap,$1,$(call rest-of-words,$2),$(call rest-of-words,$3)))
+
 # test if two files are different, replacing the first
 # with the second if so
 # args: $1 - temporary file to test
