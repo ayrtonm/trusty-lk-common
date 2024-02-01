@@ -244,6 +244,7 @@ GLOBAL_CPPFLAGS := $(GLOBAL_SHARED_CPPFLAGS) $(GLOBAL_KERNEL_CPPFLAGS)
 GLOBAL_ASMFLAGS := $(GLOBAL_SHARED_ASMFLAGS) $(GLOBAL_KERNEL_ASMFLAGS)
 GLOBAL_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) $(GLOBAL_KERNEL_LDFLAGS)
 
+$(call LOG,Project entry)
 $(info PROJECT = $(PROJECT))
 $(info PLATFORM = $(PLATFORM))
 $(info TARGET = $(TARGET))
@@ -257,6 +258,7 @@ SCS_ENABLED = $(KERNEL_SCS_ENABLED)
 include arch/$(ARCH)/rules.mk
 include top/rules.mk
 
+$(call LOG,Include recurse.mk)
 # recursively include any modules in the MODULE variable, leaving a trail of included
 # modules in the ALLMODULES list
 include make/recurse.mk
@@ -399,6 +401,7 @@ TOOLCHAIN_DEFINES := CLANG_BINDIR=\"$(subst $(SPACE),_,$(CLANG_BINDIR))\"
 TOOLCHAIN_DEFINES += CLANG_TOOLS_BINDIR=\"$(subst $(SPACE),_,$(CLANG_TOOLS_BINDIR))\"
 TOOLCHAIN_DEFINES += RUST_BINDIR=\"$(subst $(SPACE),_,$(RUST_BINDIR))\"
 $(TOOLCHAIN_CONFIG): configheader
+	@$(call INFO_DONE,toolchain,generating config file,$@)
 	@$(call MAKECONFIGHEADER,$@,TOOLCHAIN_DEFINES)
 
 GENERATED += $(TOOLCHAIN_CONFIG)
@@ -479,6 +482,7 @@ install: all
 configheader:
 
 $(CONFIGHEADER): configheader
+	@$(call INFO_DONE,global,generating config file,$@)
 	@$(call MAKECONFIGHEADER,$@,GLOBAL_DEFINES)
 
 # Empty rule for the .d files. The above rules will build .d files as a side
@@ -490,6 +494,10 @@ ifeq ($(filter $(MAKECMDGOALS), clean), )
 endif
 
 .PHONY: configheader
+
+# all build rules are defined, start build process
+$(call LOG,Start building)
+
 endif
 
 endif # make spotless
