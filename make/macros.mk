@@ -32,13 +32,6 @@ endef
 
 STRIP_TRAILING_COMMA = $(if $(1),$(subst $(COMMA)END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA,,$(strip $(1))END_OF_LIST_MARKER_FOR_STRIP_TRAILING_COMMA))
 
-# try to read the crate name from a module makefile. this is brittle but fails
-# loudly if a name is not found. we do this to avoid needing to recursively
-# process all dependency makefiles to know the crate names of immediate
-# dependencies
-ERROR_IF_CRATE_NAME_EMPTY = $(if $(1),$(1),$(error could not determine crate name for $(2). crate name must be specified as a simple assignment of the form MODULE_CRATE_NAME := foo))
-READ_CRATE_NAME = $(call ERROR_IF_CRATE_NAME_EMPTY,$(shell grep -oP '(?<=MODULE_CRATE_NAME := )\s*.*' $(1)),$(1))
-
 # test if two files are different, replacing the first
 # with the second if so
 # args: $1 - temporary file to test
