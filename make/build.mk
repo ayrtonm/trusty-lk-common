@@ -5,7 +5,7 @@ endif
 $(EXTRA_LINKER_SCRIPTS):
 
 $(OUTBIN): $(OUTELF)
-	@echo generating image: $@
+	@$(call ECHO_LOG,Generating image: $@)
 	$(NOECHO)$(SIZE) $<
 	$(NOECHO)$(OBJCOPY) -O binary $< $@
 
