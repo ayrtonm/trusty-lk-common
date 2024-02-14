@@ -154,7 +154,7 @@ TARGET :=
 PLATFORM :=
 ARCH :=
 ALLMODULES :=
-ALLMODULE_CRATE_NAMES :=
+ALLMODULE_CRATE_STEMS :=
 
 # add any external module dependencies
 MODULES := $(EXTERNAL_MODULES)
