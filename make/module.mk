@@ -207,8 +207,22 @@ include make/compile.mk
 
 ifeq ($(MODULE_IS_RUST),true)
 
-# is module a kernel module? (using module.mk directly)
-ifeq ($(LIB_SAVED_MODULE),)
+# ensure that proc-macro libraries are considered host libraries. userspace does
+# this in library.mk, but we also compile proc-macro crates for the kernel here
+ifeq ($(MODULE_RUST_CRATE_TYPES),proc-macro)
+MODULE_RUST_HOST_LIB := true
+endif
+
+MODULE_IS_KERNEL :=
+# is module using old module system? (using module.mk directly)
+ifeq ($(TRUSTY_USERSPACE),)
+ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),false)
+MODULE_IS_KERNEL := true
+endif
+endif
+
+# is module being built as kernel code?
+ifeq ($(call TOBOOL,$(MODULE_IS_KERNEL)),true)
 
 # validate crate name
 ifeq ($(MODULE_CRATE_NAME),)
@@ -221,7 +235,7 @@ MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_DEPS)
 
 define READ_CRATE_INFO
 QUERY_MODULE := $1
-QUERY_VARIABLES := MODULE_CRATE_NAME
+QUERY_VARIABLES := MODULE_CRATE_NAME MODULE_RUST_CRATE_TYPES
 $$(eval include make/query.mk)
 
 # crate name has no default; error if it is not given
@@ -231,21 +245,33 @@ endif
 
 # assign queried variables for later use
 MODULE_$(1)_CRATE_NAME := $$(QUERY_MODULE_CRATE_NAME)
+MODULE_$(1)_RUST_CRATE_TYPES := $$(if $$(QUERY_MODULE_RUST_CRATE_TYPES),$$(QUERY_MODULE_RUST_CRATE_TYPES),rlib)
 endef
 
-# ensure that MODULE_..._CRATE_NAME is populated
+# ensure that MODULE_..._CRATE_NAME and _RUST_CRATE_TYPES is populated
 $(foreach rust_dep,$(MODULE_KERNEL_RUST_DEPS),$(eval $(call READ_CRATE_INFO,$(rust_dep))))
 
-# add rust deps to the set of modules
-MODULES += $(MODULE_KERNEL_RUST_DEPS)
+# split deps into proc-macro and non- because the former are built for the host
+KERNEL_RUST_DEPS := $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(if $(filter proc-macro,$(MODULE_$(dep)_RUST_CRATE_TYPES)),,$(dep)))
+
+HOST_RUST_DEPS := $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(if $(filter proc-macro,$(MODULE_$(dep)_RUST_CRATE_TYPES)),$(dep),))
+
+# add kernel rust deps to the set of modules
+MODULES += $(KERNEL_RUST_DEPS)
 
 # determine crate names of dependency modules so we can depend on their rlibs.
 # because of ordering, we cannot simply e.g. set/read MODULE_$(dep)_CRATE_NAME,
 # so we must manually read the variable value from the Makefile
-DEP_CRATE_NAMES := $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
+DEP_CRATE_NAMES := $(foreach dep, $(KERNEL_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
+
+# compute paths of host (proc-macro) dependencies
+HOST_DEP_CRATE_NAMES = $(foreach dep, $(HOST_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
+MODULE_KERNEL_RUST_HOST_LIBS := $(foreach dep, $(HOST_DEP_CRATE_NAMES), $(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(dep).so)
+MODULE_RLIBS += $(foreach dep, $(HOST_DEP_CRATE_NAMES), $(dep)=$(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(dep).so)
 
 # save dep crate names so we can topologically sort then for top-level rust build
 MODULE_$(MODULE_CRATE_NAME)_CRATE_DEPS := $(DEP_CRATE_NAMES)
+ALL_KERNEL_HOST_CRATE_NAMES := $(ALL_KERNEL_HOST_CRATE_NAMES) $(HOST_DEP_CRATE_NAMES)
 
 # change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
 OLD_BUILDDIR := $(BUILDDIR)
@@ -256,7 +282,7 @@ MODULE_KERNEL_RUST_LIBS := $(foreach dep, $(DEP_CRATE_NAMES), $(call TOBUILDDIR,
 MODULE_RLIBS += $(foreach dep, $(DEP_CRATE_NAMES), $(dep)=$(call TOBUILDDIR,lib$(dep).rlib))
 
 # include rust lib deps in lib deps
-MODULE_LIBRARIES += $(MODULE_KERNEL_RUST_LIBS)
+MODULE_LIBRARIES += $(MODULE_KERNEL_RUST_LIBS) $(MODULE_KERNEL_RUST_HOST_LIBS)
 
 # determine MODULE_RSOBJS and MODULE_RUST_CRATE_TYPES for rust kernel modules
 include make/rust.mk
@@ -265,6 +291,9 @@ include make/rust.mk
 ifneq ($(MODULE_RUST_CRATE_TYPES),rlib)
 $(error rust crates for the kernel must be built as rlibs only, but $(MODULE) builds $(MODULE_RUST_CRATE_TYPES))
 endif
+
+# accumulate list of all crates we built (for linking, so skip proc-macro crates)
+ALLMODULE_CRATE_NAMES := $(MODULE_CRATE_NAME) $(ALLMODULE_CRATE_NAMES)
 
 # reset BUILDDIR
 BUILDDIR := $(OLD_BUILDDIR)
@@ -311,8 +340,6 @@ endif
 # track the module rlib for make clean
 GENERATED += $(MODULE_RSOBJS)
 
-# accumulate list of all crates we built
-ALLMODULE_CRATE_NAMES := $(MODULE_CRATE_NAME) $(ALLMODULE_CRATE_NAMES)
 
 else # not rust
 # Archive the module's object files into a static library.
