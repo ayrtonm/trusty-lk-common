@@ -234,6 +234,16 @@ endif
 # concatenate them to use whichever is set
 MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_LIBRARY_EXPORTED_DEPS) $(MODULE_DEPS)
 
+ifeq ($(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)),true)
+
+# In userspace, MODULE_ADD_IMPLICIT_DEPS adds std.
+# In the kernel, it adds core and compiler_builtins.
+MODULE_KERNEL_RUST_DEPS += \
+	trusty/user/base/lib/libcore-rust/ \
+	trusty/user/base/lib/libcompiler_builtins-rust/ \
+
+endif
+
 define READ_CRATE_INFO
 QUERY_MODULE := $1
 QUERY_VARIABLES := MODULE_CRATE_NAME MODULE_RUST_STEM MODULE_RUST_CRATE_TYPES
