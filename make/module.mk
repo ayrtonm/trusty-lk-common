@@ -259,6 +259,7 @@ HOST_RUST_DEPS := $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(if $(filter proc-
 
 # add kernel rust deps to the set of modules
 MODULES += $(KERNEL_RUST_DEPS)
+HOST_MODULES += $(HOST_RUST_DEPS)
 
 # determine crate names of dependency modules so we can depend on their rlibs.
 # because of ordering, we cannot simply e.g. set/read MODULE_$(dep)_CRATE_NAME,
