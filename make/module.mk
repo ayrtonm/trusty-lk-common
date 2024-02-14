@@ -229,9 +229,10 @@ ifeq ($(MODULE_CRATE_NAME),)
 $(error rust module $(MODULE) does not set MODULE_CRATE_NAME. It must be set with a simple assignment, i.e. "MODULE_CRATE_NAME := foo")
 endif
 
-# if specific kernel rust deps not specified, rust modules use other deps. only
-# one of these two should be set, so this just uses the non-empty one
-MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_DEPS)
+# if specific kernel rust deps not specified, rust modules use other deps.
+# library and module deps are set mutually exclusively, so it's safe to simply
+# concatenate them to use whichever is set
+MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_LIBRARY_EXPORTED_DEPS) $(MODULE_DEPS)
 
 define READ_CRATE_INFO
 QUERY_MODULE := $1
