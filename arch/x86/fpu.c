@@ -149,6 +149,11 @@ void fpu_context_switch(thread_t *old_thread, thread_t *new_thread)
     else
         x86_set_cr0(x86_get_cr0() & ~X86_CR0_TS);
 
+    if (old_thread == fp_owner && old_thread->state == THREAD_DEATH) {
+        LTRACEF("dead fp_owner thread\n");
+        fp_owner = NULL;
+    }
+
     return;
 }
 
