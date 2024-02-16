@@ -60,9 +60,29 @@ bool arch_pac_address_supported(void) {
 }
 
 bool arch_pac_exception_supported(void) {
-    const uint64_t isar1 = ARM64_READ_SYSREG(id_aa64isar1_el1);
 
-    /* FEAT_FPAC or FEAT_FPACCOMBINE */
-    return (get_nibble(isar1, ID_AA64ISAR1_EL1_API_SHIFT) & 0x4) != 0;
+    /*
+     * Check each of the sysregs.
+     * Only one register should be populated, and gives which algorithm is
+     * implemented.  We check bit 0x4 in the field for FPAC or FPACCOMBINE.
+     */
+    const uint64_t isar1 = ARM64_READ_SYSREG(id_aa64isar1_el1);
+    const uint8_t apa = get_nibble(isar1, ID_AA64ISAR1_EL1_APA_SHIFT);
+    if (apa) {
+        return (apa & 0x4) != 0;
+    }
+
+    const uint8_t api = get_nibble(isar1, ID_AA64ISAR1_EL1_API_SHIFT);
+    if (api) {
+        return (api & 0x4) != 0;
+    }
+
+    const uint64_t isar2 = ARM64_READ_SYSREG(id_aa64isar2_el1);
+    const uint8_t apa3 = get_nibble(isar2, ID_AA64ISAR2_EL1_APA3_SHIFT);
+    if (apa3) {
+        return (apa3 & 0x4) != 0;
+    }
+
+    return false;
 }
 #endif
