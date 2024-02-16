@@ -30,7 +30,10 @@
 #endif
 #define PAGE_SIZE_SHIFT 12
 
+/* Determine the d-cache line size in bytes, unless already set by the build */
+#ifndef CACHE_LINE
 #define CACHE_LINE 32
+#endif
 
 #define ARCH_DEFAULT_STACK_SIZE 8192
 #define DEFAULT_TSS 4096

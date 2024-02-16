@@ -27,6 +27,8 @@
 #define PAGE_SIZE 4096U
 #define PAGE_SIZE_SHIFT 12
 
+/* Determine the d-cache line size in bytes, unless already set by the build */
+#ifndef CACHE_LINE
 #if ARM_CPU_ARM7
 /* irrelevant, no consistent cache */
 #define CACHE_LINE 32
@@ -52,6 +54,7 @@
 #define CACHE_LINE 64
 #else
 #error unknown cpu
+#endif
 #endif
 
 #endif

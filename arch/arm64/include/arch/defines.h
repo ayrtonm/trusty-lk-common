@@ -39,10 +39,13 @@
 #define PAGE_SIZE (1UL << PAGE_SIZE_SHIFT)
 #define USER_PAGE_SIZE (1UL << USER_PAGE_SIZE_SHIFT)
 
+/* Determine the d-cache line size in bytes, unless already set by the build */
+#ifndef CACHE_LINE
 #if ARM64_CPU_CORTEX_A53 || ARM64_CPU_CORTEX_A57 || ARM64_CPU_CORTEX_A72
 #define CACHE_LINE 64
 #else
 #define CACHE_LINE 32
+#endif
 #endif
 
 #define ARM64_EXC_SP_EL1_BUF_SIZE (16)
