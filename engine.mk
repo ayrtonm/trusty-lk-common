@@ -307,18 +307,27 @@ GLOBAL_DEFINES += \
 	ASLR=1
 endif
 
-# shadow call stack for user tasks
+# build with shadow call stacks used in user tasks
 ifeq (true,$(call TOBOOL,$(USER_SCS_ENABLED)))
-# guards allocation and deallocation of the SCS guard region in the kernel
 GLOBAL_DEFINES += \
 	USER_SCS_ENABLED=1
 endif
 
-# shadow call stack in the kernel
+# build with shadow call stacks used in the kernel
 ifeq (true,$(call TOBOOL,$(KERNEL_SCS_ENABLED)))
 GLOBAL_DEFINES += \
 	KERNEL_SCS_ENABLED=1
 endif
+
+# build the kernel with SCS support for user tasks, unless overridden
+USER_SCS_SUPPORTED ?= true
+
+ifeq (true,$(call TOBOOL,$(USER_SCS_SUPPORTED)))
+# guards allocation and deallocation of the SCS guard region in the kernel
+GLOBAL_DEFINES += \
+	USER_SCS_SUPPORTED=1
+endif
+
 
 ifeq (true,$(call TOBOOL,$(PIE_KERNEL)))
 # Build a PIE kernel binary
