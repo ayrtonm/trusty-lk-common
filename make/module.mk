@@ -235,7 +235,7 @@ MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_DEPS)
 
 define READ_CRATE_INFO
 QUERY_MODULE := $1
-QUERY_VARIABLES := MODULE_CRATE_NAME MODULE_RUST_CRATE_TYPES
+QUERY_VARIABLES := MODULE_CRATE_NAME MODULE_RUST_STEM MODULE_RUST_CRATE_TYPES
 $$(eval include make/query.mk)
 
 # crate name has no default; error if it is not given
@@ -245,10 +245,11 @@ endif
 
 # assign queried variables for later use
 MODULE_$(1)_CRATE_NAME := $$(QUERY_MODULE_CRATE_NAME)
+MODULE_$(1)_CRATE_STEM := $$(if $$(QUERY_MODULE_RUST_STEM),$$(QUERY_MODULE_RUST_STEM),$$(QUERY_MODULE_CRATE_NAME))
 MODULE_$(1)_RUST_CRATE_TYPES := $$(if $$(QUERY_MODULE_RUST_CRATE_TYPES),$$(QUERY_MODULE_RUST_CRATE_TYPES),rlib)
 endef
 
-# ensure that MODULE_..._CRATE_NAME and _RUST_CRATE_TYPES is populated
+# ensure that MODULE_..._CRATE_NAME, _CRATE_STEM, and _RUST_CRATE_TYPES are populated
 $(foreach rust_dep,$(MODULE_KERNEL_RUST_DEPS),$(eval $(call READ_CRATE_INFO,$(rust_dep))))
 
 # split deps into proc-macro and non- because the former are built for the host
@@ -263,23 +264,33 @@ MODULES += $(KERNEL_RUST_DEPS)
 # because of ordering, we cannot simply e.g. set/read MODULE_$(dep)_CRATE_NAME,
 # so we must manually read the variable value from the Makefile
 DEP_CRATE_NAMES := $(foreach dep, $(KERNEL_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
+DEP_CRATE_STEMS := $(foreach dep, $(KERNEL_RUST_DEPS), $(MODULE_$(dep)_CRATE_STEM))
 
 # compute paths of host (proc-macro) dependencies
-HOST_DEP_CRATE_NAMES = $(foreach dep, $(HOST_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
-MODULE_KERNEL_RUST_HOST_LIBS := $(foreach dep, $(HOST_DEP_CRATE_NAMES), $(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(dep).so)
-MODULE_RLIBS += $(foreach dep, $(HOST_DEP_CRATE_NAMES), $(dep)=$(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(dep).so)
+HOST_DEP_CRATE_NAMES := $(foreach dep, $(HOST_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
+HOST_DEP_CRATE_STEMS := $(foreach dep, $(HOST_RUST_DEPS), $(MODULE_$(dep)_CRATE_STEM))
+MODULE_KERNEL_RUST_HOST_LIBS := $(foreach stem, $(HOST_DEP_CRATE_STEMS), $(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(stem).so)
+gen_host_rlib_assignment = $(1)=$(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(2).so
+MODULE_RLIBS += $(call pairmap,gen_host_rlib_assignment,$(HOST_DEP_CRATE_NAMES),$(HOST_DEP_CRATE_STEMS))
 
-# save dep crate names so we can topologically sort then for top-level rust build
-MODULE_$(MODULE_CRATE_NAME)_CRATE_DEPS := $(DEP_CRATE_NAMES)
+# Stem defaults to the crate name
+ifeq ($(MODULE_RUST_STEM),)
+MODULE_RUST_STEM := $(MODULE_CRATE_NAME)
+endif
+
+# save dep crate names so we can topologically sort them for top-level rust build
+MODULE_$(MODULE_RUST_STEM)_CRATE_DEPS := $(DEP_CRATE_STEMS)
 ALL_KERNEL_HOST_CRATE_NAMES := $(ALL_KERNEL_HOST_CRATE_NAMES) $(HOST_DEP_CRATE_NAMES)
+ALL_KERNEL_HOST_CRATE_STEMS := $(ALL_KERNEL_HOST_CRATE_STEMS) $(HOST_DEP_CRATE_STEMS)
 
 # change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
 OLD_BUILDDIR := $(BUILDDIR)
 BUILDDIR := $(BUILDDIR)/kernellib
 
 # compute paths of dependencies
-MODULE_KERNEL_RUST_LIBS := $(foreach dep, $(DEP_CRATE_NAMES), $(call TOBUILDDIR,lib$(dep).rlib))
-MODULE_RLIBS += $(foreach dep, $(DEP_CRATE_NAMES), $(dep)=$(call TOBUILDDIR,lib$(dep).rlib))
+MODULE_KERNEL_RUST_LIBS := $(foreach dep, $(DEP_CRATE_STEMS), $(call TOBUILDDIR,lib$(dep).rlib))
+gen_rlib_assignment = $(1)=$(call TOBUILDDIR,lib$(2).rlib)
+MODULE_RLIBS += $(call pairmap,gen_rlib_assignment,$(DEP_CRATE_NAMES),$(DEP_CRATE_STEMS))
 
 # include rust lib deps in lib deps
 MODULE_LIBRARIES += $(MODULE_KERNEL_RUST_LIBS) $(MODULE_KERNEL_RUST_HOST_LIBS)
@@ -293,7 +304,7 @@ $(error rust crates for the kernel must be built as rlibs only, but $(MODULE) bu
 endif
 
 # accumulate list of all crates we built (for linking, so skip proc-macro crates)
-ALLMODULE_CRATE_NAMES := $(MODULE_CRATE_NAME) $(ALLMODULE_CRATE_NAMES)
+ALLMODULE_CRATE_STEMS := $(MODULE_RUST_STEM) $(ALLMODULE_CRATE_STEMS)
 
 # reset BUILDDIR
 BUILDDIR := $(OLD_BUILDDIR)
