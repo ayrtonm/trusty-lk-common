@@ -208,6 +208,7 @@ thread_t *thread_create(const char *name, thread_start_routine entry, void *arg,
 thread_t *thread_create_etc(thread_t *t, const char *name, thread_start_routine entry, void *arg, int priority, void *stack, size_t stack_size, size_t shadow_stack_size);
 status_t thread_resume(thread_t *);
 void thread_exit(int retcode) __NO_RETURN;
+void thread_exit_from_panic(void) __NO_RETURN;
 void thread_sleep_ns(lk_time_ns_t delay_ns);
 void thread_sleep_until_ns(lk_time_ns_t target_time_ns);
 static inline void thread_sleep(lk_time_t delay_ms) {

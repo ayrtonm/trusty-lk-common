@@ -139,6 +139,19 @@ static void insert_in_run_queue_tail(thread_t *t)
     run_queue_bitmap |= (1U<<t->priority);
 }
 
+static void delete_from_run_queue(thread_t *t) {
+    DEBUG_ASSERT(t->magic == THREAD_MAGIC);
+    DEBUG_ASSERT(t->state == THREAD_READY);
+    DEBUG_ASSERT(list_in_list(&t->queue_node));
+    DEBUG_ASSERT(arch_ints_disabled());
+    DEBUG_ASSERT(thread_lock_held());
+
+    list_delete(&t->queue_node);
+
+    if (list_is_empty(&run_queue[t->priority]))
+        run_queue_bitmap &= ~(1U<<t->priority);
+}
+
 /**
  * thread_get_expected_cookie() - get expected cookie for a given thread
  * @t: address of thread associated with the expected cookie
@@ -626,8 +639,8 @@ void thread_exit(int retcode)
     thread_t *current_thread = get_current_thread();
 
     DEBUG_ASSERT(current_thread->magic == THREAD_MAGIC);
-    DEBUG_ASSERT(current_thread->state == THREAD_RUNNING);
     DEBUG_ASSERT(!thread_is_idle(current_thread));
+    DEBUG_ASSERT(current_thread->state == THREAD_RUNNING);
 
     thread_check_cookie(current_thread);
 
@@ -658,6 +671,61 @@ void thread_exit(int retcode)
     panic("somehow fell through thread_exit()\n");
 }
 
+/**
+ * @brief  Terminate the current thread due to a panic
+ *
+ * Threads should not call this method directly. Instead, test threads can set
+ * the exit-on-panic flag to exit via this function rather than halting the
+ * system. This function should not be used outside of test builds.
+ *
+ * This function is similar to thread_exit insofar that it does not return.
+ */
+void thread_exit_from_panic(void) {
+    thread_t *current_thread = get_current_thread();
+
+    DEBUG_ASSERT(current_thread->flags & THREAD_FLAG_EXIT_ON_PANIC);
+
+    /* thread lock, if held, was released in _panic */
+    THREAD_LOCK(state);
+
+    /* prevent potential infinite recursion in case we panic again */
+    current_thread->flags &= ~THREAD_FLAG_EXIT_ON_PANIC;
+
+    DEBUG_ASSERT(current_thread->state == THREAD_RUNNING ||
+                 current_thread->state == THREAD_READY);
+
+#if TEST_BUILD
+    /* ensure thread cookie is valid so we don't panic in thread_resched */
+    current_thread->cookie = thread_get_expected_cookie(current_thread);
+#endif
+    /*
+     * Threads are typically in the THREAD_RUNNING state when they exit.
+     * However, if a thread with the THREAD_FLAG_EXIT_ON_PANIC flag set fails
+     * a cookie check in thread_resched, this function may run while the
+     * thread is still on the run queue with its state set to THREAD_READY.
+     *
+     * In test builds: Remove it from the run queue so it does not get
+     * rescheduled and to ensure that a thread_join operation on the
+     * panic'ed thread completes successfully. Set its state to THREAD_READY.
+     *
+     * Non-test builds shouldn't exercise this code path so we panic.
+     */
+    if (current_thread->state == THREAD_READY) {
+#if TEST_BUILD
+        delete_from_run_queue(current_thread);
+        /* lie about the thread state to avoid tripping assert in thread_exit */
+        current_thread->state = THREAD_RUNNING;
+#else
+        /* thread lock will be released in _panic */
+        panic("%s: tried to exit runnable kernel test thread", __func__);
+#endif
+    }
+
+    THREAD_UNLOCK(state);
+
+    thread_exit(ERR_FAULT);
+}
+
 __WEAK void platform_idle(void)
 {
     arch_idle();
@@ -684,10 +752,7 @@ static thread_t *get_top_thread(int cpu, bool unlink)
 #endif
             {
                 if (unlink) {
-                    list_delete(&newthread->queue_node);
-
-                    if (list_is_empty(&run_queue[next_queue]))
-                        run_queue_bitmap &= ~(1U<<next_queue);
+                    delete_from_run_queue(newthread);
                 }
 
                 return newthread;
@@ -812,8 +877,6 @@ static void thread_resched(void) {
 
     THREAD_STATS_INC(reschedules);
 
-    newthread = get_top_thread(cpu, true);
-
     /*
      * These threads are already on the runqueues so these checks should pass
      * unless an existing thread struct was corrupted. If that is the case, the
@@ -821,6 +884,9 @@ static void thread_resched(void) {
      * register file for that thread instead.
      */
     thread_check_cookie(current_thread);
+
+    newthread = get_top_thread(cpu, true);
+
     thread_check_cookie(newthread);
 
     /*

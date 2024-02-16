@@ -62,7 +62,7 @@ void _panic(const char *fmt, ...)
     dump_backtrace();
 
     if (curr && thread_get_flag_exit_on_panic(curr)) {
-        thread_exit(ERR_FAULT);
+        thread_exit_from_panic();
     }
 
     va_start(ap, fmt);
