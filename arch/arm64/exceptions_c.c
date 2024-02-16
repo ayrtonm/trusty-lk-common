@@ -276,7 +276,7 @@ static void dump_memory_around_registers(
         dump_memory_around_register(regname, iframe->r[i]);
     }
     dump_memory_around_register("fp", iframe->fp);
-    dump_memory_around_register("lr", iframe->lr);
+    dump_memory_around_register("lr", arch_extract_return_addr(iframe->lr));
     dump_memory_around_register("sp", iframe->sp);
     dump_memory_around_register("elr", iframe->elr);
 }
@@ -297,7 +297,14 @@ static void dump_iframe(const struct arm64_iframe_long *iframe)
     printf("x20 0x%16" PRIx64 " x21 0x%16" PRIx64 " x22 0x%16" PRIx64 " x23 0x%16" PRIx64 "\n", iframe->r[20], iframe->r[21], iframe->r[22], iframe->r[23]);
     printf("x24 0x%16" PRIx64 " x25 0x%16" PRIx64 " x26 0x%16" PRIx64 " x27 0x%16" PRIx64 "\n", iframe->r[24], iframe->r[25], iframe->r[26], iframe->r[27]);
     printf("x28 0x%16" PRIx64 " fp  0x%16" PRIx64 " lr  0x%16" PRIx64 " sp  0x%16" PRIx64 "\n", iframe->r[28], iframe->fp, iframe->lr, iframe->sp);
-    printf("elr 0x%16" PRIx64 "\n", iframe->elr);
+
+    /* Check if lr contains a PAC and also display the original */
+    uintptr_t lr_xpac = arch_extract_return_addr(iframe->lr);
+    if (lr_xpac != iframe->lr) {
+        printf("lr   0x%16" PRIx64 " (pac removed)\n", lr_xpac);
+    }
+
+    printf("elr  0x%16" PRIx64 "\n", iframe->elr);
     printf("spsr 0x%16" PRIx64 "\n", iframe->spsr);
 #endif
 }

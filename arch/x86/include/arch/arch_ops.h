@@ -131,6 +131,15 @@ static inline uint arch_curr_cpu_num(void)
     return 0;
 }
 
+/**
+ * arch_extract_return_addr - this function simply passes through addr.
+ *
+ * Return: addr is returned without modification.
+ */
+static inline uintptr_t arch_extract_return_addr(uintptr_t addr) {
+    return addr;
+}
+
 #define mb()        __asm__ volatile ("mfence":::"memory");
 #define wmb()       __asm__ volatile ("sfence":::"memory");
 #define rmb()       __asm__ volatile ("lfence":::"memory");

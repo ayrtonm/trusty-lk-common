@@ -24,6 +24,7 @@
 
 #ifndef ASSEMBLY
 
+#include <arch/ops.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <compiler.h>
@@ -286,6 +287,20 @@ static inline uint arch_curr_cpu_num(void)
     return 0;
 }
 #endif
+
+/**
+ * arch_extract_return_addr - process LR to remove any protections
+ *
+ * Return: The lr value with any PAC removed.
+ *         If PAC is not supported, lr is returned without modification.
+ */
+static inline uintptr_t arch_extract_return_addr(uintptr_t lr) {
+    if (arch_pac_address_supported()) {
+        __asm__(".arch_extension pauth\n"
+                "\txpaci %0" : "+r" (lr));
+    }
+    return lr;
+}
 
 /**
  * arm64_tagging_supported - indicate if the CPU supports the tagging feature
