@@ -22,10 +22,10 @@
  */
 
 #include <err.h>
-#include <list.h>
 #include <kernel/thread.h>
-#include <lib/unittest/unittest.h>
 #include <lib/rand/rand.h>
+#include <lib/unittest/unittest.h>
+#include <list.h>
 #include <platform.h>
 #include <shared/lk/macros.h>
 #include <sys/types.h>
@@ -63,11 +63,11 @@ static int threadtest_run_in_thread(const char* thread_name,
 }
 
 static void thread_test_corrupt_current_thread_cookie(void) {
-    thread_t *curr = get_current_thread();
+    thread_t* curr = get_current_thread();
     curr->cookie = curr->cookie + 1;
 }
 
-static int thread_test_corrupt_cookie_before_yield_fn(void *unused) {
+static int thread_test_corrupt_cookie_before_yield_fn(void* unused) {
     thread_test_corrupt_current_thread_cookie();
     /* put thread at the end run queue before calling thread_resched */
     thread_yield();
@@ -89,7 +89,7 @@ TEST(threadtest, cookie_corruption_before_yield_must_panic) {
     EXPECT_EQ(ret, ERR_FAULT);
 }
 
-static int thread_test_corrupt_cookie_before_preempt_fn(void *unused) {
+static int thread_test_corrupt_cookie_before_preempt_fn(void* unused) {
     thread_test_corrupt_current_thread_cookie();
     /*
      * put thread at the head of run queue before calling thread_resched
@@ -111,7 +111,7 @@ TEST(threadtest, cookie_corruption_before_preempt_must_panic) {
     EXPECT_EQ(ret, ERR_FAULT);
 }
 
-static int thread_test_corrupt_cookie_before_exit_fn(void *unused) {
+static int thread_test_corrupt_cookie_before_exit_fn(void* unused) {
     thread_test_corrupt_current_thread_cookie();
 
     /* exit thread with corrupt cookie */
@@ -126,8 +126,8 @@ TEST(threadtest, cookie_corruption_before_exit_must_panic) {
     EXPECT_EQ(ret, ERR_FAULT);
 }
 
-static int thread_blocking_fn(void *arg) {
-    wait_queue_t *queue = (wait_queue_t*)arg;
+static int thread_blocking_fn(void* arg) {
+    wait_queue_t* queue = (wait_queue_t*)arg;
 
     /* block so parent can corrupt cookie; ignore return value */
     THREAD_LOCK(state);
@@ -141,7 +141,7 @@ static int thread_blocking_fn(void *arg) {
 }
 
 /* sleep until a newly created thread is blocked on a wait queue */
-static status_t thread_sleep_until_blocked(thread_t *sleeper) {
+static status_t thread_sleep_until_blocked(thread_t* sleeper) {
     int thread_state;
     lk_time_ns_t now_ns = current_time_ns();
     lk_time_ns_t timeout = now_ns + S2NS(10);
@@ -159,13 +159,13 @@ static status_t thread_sleep_until_blocked(thread_t *sleeper) {
 }
 
 struct thread_queue_args {
-    wait_queue_t *queue;
-    thread_t *thread;
+    wait_queue_t* queue;
+    thread_t* thread;
 };
 
-static int thread_corrupt_then_wake_fn(void *args) {
-    struct thread_queue_args *test_args = (struct thread_queue_args*)args;
-    wait_queue_t *queue = test_args->queue;
+static int thread_corrupt_then_wake_fn(void* args) {
+    struct thread_queue_args* test_args = (struct thread_queue_args*)args;
+    wait_queue_t* queue = test_args->queue;
     thread_t* sleeper = test_args->thread;
 
     status_t res = thread_sleep_until_blocked(sleeper);
@@ -187,13 +187,13 @@ test_abort:
 TEST(threadtest, cookie_corruption_detected_after_wakeup) {
     int ret;
     wait_queue_t queue;
-    thread_t *sleeping_thread;
+    thread_t* sleeping_thread;
     uint64_t expected_cookie;
 
     wait_queue_init(&queue);
-    sleeping_thread = thread_create("sleeping thread", &thread_blocking_fn,
-                                    &queue, DEFAULT_PRIORITY,
-                                    DEFAULT_STACK_SIZE);
+    sleeping_thread =
+            thread_create("sleeping thread", &thread_blocking_fn, &queue,
+                          DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
     ASSERT_NE(sleeping_thread, NULL);
     expected_cookie = sleeping_thread->cookie;
     thread_set_flag_exit_on_panic(sleeping_thread, true);
@@ -201,12 +201,11 @@ TEST(threadtest, cookie_corruption_detected_after_wakeup) {
     thread_resume(sleeping_thread);
 
     struct thread_queue_args test_args = {
-        .queue = &queue,
-        .thread = sleeping_thread,
+            .queue = &queue,
+            .thread = sleeping_thread,
     };
 
-    ret = threadtest_run_in_thread("waking thread",
-                                   thread_corrupt_then_wake_fn,
+    ret = threadtest_run_in_thread("waking thread", thread_corrupt_then_wake_fn,
                                    &test_args);
 
     ASSERT_EQ(ret, ERR_FAULT);
@@ -237,9 +236,9 @@ test_abort:;
     }
 }
 
-static int thread_fake_then_wake_fn(void *args) {
-    struct thread_queue_args *test_args = (struct thread_queue_args*)args;
-    wait_queue_t *queue = test_args->queue;
+static int thread_fake_then_wake_fn(void* args) {
+    struct thread_queue_args* test_args = (struct thread_queue_args*)args;
+    wait_queue_t* queue = test_args->queue;
     thread_t fake, *sleeper = test_args->thread;
 
     status_t res = thread_sleep_until_blocked(sleeper);
@@ -269,24 +268,23 @@ test_abort:
 TEST(threadtest, fake_thread_struct_detected_after_wakeup) {
     int ret;
     wait_queue_t queue;
-    thread_t *sleeping_thread;
+    thread_t* sleeping_thread;
 
     wait_queue_init(&queue);
-    sleeping_thread = thread_create("sleeping thread", &thread_blocking_fn,
-                                    &queue, DEFAULT_PRIORITY,
-                                    DEFAULT_STACK_SIZE);
+    sleeping_thread =
+            thread_create("sleeping thread", &thread_blocking_fn, &queue,
+                          DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
     ASSERT_NE(sleeping_thread, NULL);
     thread_set_flag_exit_on_panic(sleeping_thread, true);
 
     thread_resume(sleeping_thread);
 
     struct thread_queue_args test_args = {
-        .queue = &queue,
-        .thread = sleeping_thread,
+            .queue = &queue,
+            .thread = sleeping_thread,
     };
 
-    ret = threadtest_run_in_thread("faking thread",
-                                   thread_fake_then_wake_fn,
+    ret = threadtest_run_in_thread("faking thread", thread_fake_then_wake_fn,
                                    &test_args);
 
     ASSERT_EQ(ret, ERR_FAULT);
@@ -308,13 +306,13 @@ test_abort:;
     }
 }
 
-static int cookie_tester(void *_unused) {
+static int cookie_tester(void* _unused) {
     return 0;
 }
 
 TEST(threadtest, threads_have_valid_cookies) {
-    thread_t *curr = get_current_thread();
-    thread_t *new;
+    thread_t* curr = get_current_thread();
+    thread_t* new;
 
     new = thread_create("cookie tester", &cookie_tester, NULL, DEFAULT_PRIORITY,
                         DEFAULT_STACK_SIZE);
@@ -323,7 +321,7 @@ TEST(threadtest, threads_have_valid_cookies) {
      * Threads must have the same cookie value modulo the effects of
      * xor'ing the cookie with the address of the associated thread.
      */
-    EXPECT_EQ(new->cookie ^ (uint64_t)new, curr->cookie ^ (uint64_t)curr);
+    EXPECT_EQ(new->cookie ^ (uint64_t) new, curr->cookie ^ (uint64_t)curr);
 
     /*
      * xor'ing the cookie with the address of the associated thread should
@@ -344,12 +342,12 @@ TEST(threadtest, threads_have_valid_cookies) {
  * This tests only one key, as used by the current PAC implementation, and
  * assumes the structure contains no padding, so can be trivially copied and
  * compared.  If the structure is changed, this test will likely need to be
- * updated to at least check additional keys.
+ * updated to at least check new keys.
  */
 STATIC_ASSERT(sizeof(struct packeys) == sizeof(uint64_t) * 2);
 
-static int pac_tester(void *param) {
-    struct packeys *keys = param;
+static int pac_tester(void* param) {
+    struct packeys* keys = param;
 
     keys->apia[0] = ARM64_READ_SYSREG(APIAKeyLo_EL1);
     keys->apia[1] = ARM64_READ_SYSREG(APIAKeyHi_EL1);
@@ -358,7 +356,7 @@ static int pac_tester(void *param) {
 }
 
 TEST(threadtest, threads_have_valid_pac_keys) {
-    struct packeys actual_keys[4] = { 0 };
+    struct packeys actual_keys[4] = {0};
 
     if (!arch_pac_address_supported()) {
         trusty_unittest_printf("[  SKIPPED ] PAuth is not supported\n");
@@ -367,10 +365,11 @@ TEST(threadtest, threads_have_valid_pac_keys) {
 
     /* Test multiple threads */
     for (uint8_t i = 0; i < countof(actual_keys); i++) {
-        struct packeys expected_keys = { 0 };
+        struct packeys expected_keys;
 
-        thread_t *new = thread_create("pac thread", &pac_tester, &actual_keys[i],
-                                      DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
+        thread_t* new =
+                thread_create("pac tester", &pac_tester, &actual_keys[i],
+                              DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
 
         /* Store the expected keys assigned to the thread */
         expected_keys = new->arch.packeys;
@@ -380,9 +379,9 @@ TEST(threadtest, threads_have_valid_pac_keys) {
         thread_join(new, NULL, INFINITE_TIME);
 
         /* Check the keys are as expected */
-        EXPECT_EQ(memcmp(&actual_keys[i], &expected_keys,
-                         sizeof(struct packeys)),
-                  0, "incorrect key assignment");
+        EXPECT_EQ(
+                memcmp(&actual_keys[i], &expected_keys, sizeof(struct packeys)),
+                0, "incorrect key assignment");
 
         /* Check threads don't share keys */
         for (uint8_t j = 0; j < i; j++) {
