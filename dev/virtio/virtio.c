@@ -101,17 +101,18 @@ static enum handler_return virtio_mmio_irq(void *arg)
                     r, ring->used->flags, ring->used->idx, ring->last_used);
 
             uint cur_idx = ring->used->idx;
-            for (uint i = ring->last_used; i != (cur_idx & ring->num_mask); i = (i + 1) & ring->num_mask) {
+            for (uint i = ring->last_used; i != cur_idx; i = (i + 1) & 0xffff) {
                 LTRACEF("looking at idx %u\n", i);
 
                 // process chain
-                struct vring_used_elem *used_elem = &ring->used->ring[i];
+                struct vring_used_elem *used_elem = &ring->used->ring[i & ring->num_mask];
                 LTRACEF("id %u, len %u\n", used_elem->id, used_elem->len);
 
                 DEBUG_ASSERT(dev->irq_driver_callback);
                 ret |= dev->irq_driver_callback(dev, r, used_elem);
 
-                ring->last_used = (ring->last_used + 1) & ring->num_mask;
+                DEBUG_ASSERT(i == ring->last_used);
+                ring->last_used = (ring->last_used + 1) & 0xffff;
             }
         }
     }
