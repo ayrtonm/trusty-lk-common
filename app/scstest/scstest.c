@@ -49,11 +49,15 @@ static void inspect_thread(thread_t *t, size_t ss_sz) {
     EXPECT_EQ(ss_sz, t->shadow_stack_size,
               "Shadow call stack did not have the expected size");
 
-    /* check the shadow stack size by accessing the last element */
+    /* check the shadow stack size by inverting the last element */
     void* last_elem = t->shadow_stack + t->shadow_stack_size - sizeof(vaddr_t);
     EXPECT_EQ(NO_ERROR,
               mmutest_arch_store_uint32((uint32_t*)last_elem, false),
               "Actual size of shadow call stack differs from recorded size");
+    /* restore last_elem by calling mmutest_arch_store_uint32 a second time */
+    EXPECT_EQ(NO_ERROR,
+              mmutest_arch_store_uint32((uint32_t*)last_elem, false),
+              "Restoring last element of shadow stack failed");
 
     const size_t extra_space = round_up(t->shadow_stack_size, PAGE_SIZE) -
                                t->shadow_stack_size;
