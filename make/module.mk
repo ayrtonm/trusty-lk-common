@@ -219,13 +219,30 @@ endif
 # one of these two should be set, so this just uses the non-empty one
 MODULE_KERNEL_RUST_DEPS := $(MODULE_LIBRARY_DEPS) $(MODULE_DEPS)
 
+define READ_CRATE_INFO
+QUERY_MODULE := $1
+QUERY_VARIABLES := MODULE_CRATE_NAME
+$$(eval include make/query.mk)
+
+# crate name has no default; error if it is not given
+ifeq ($$(QUERY_MODULE_CRATE_NAME),)
+$$(error could not determine crate name for module $1)
+endif
+
+# assign queried variables for later use
+MODULE_$(1)_CRATE_NAME := $$(QUERY_MODULE_CRATE_NAME)
+endef
+
+# ensure that MODULE_..._CRATE_NAME is populated
+$(foreach rust_dep,$(MODULE_KERNEL_RUST_DEPS),$(eval $(call READ_CRATE_INFO,$(rust_dep))))
+
 # add rust deps to the set of modules
 MODULES += $(MODULE_KERNEL_RUST_DEPS)
 
 # determine crate names of dependency modules so we can depend on their rlibs.
 # because of ordering, we cannot simply e.g. set/read MODULE_$(dep)_CRATE_NAME,
 # so we must manually read the variable value from the Makefile
-DEP_CRATE_NAMES = $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(call READ_CRATE_NAME,$(dep)/rules.mk))
+DEP_CRATE_NAMES := $(foreach dep, $(MODULE_KERNEL_RUST_DEPS), $(MODULE_$(dep)_CRATE_NAME))
 
 # save dep crate names so we can topologically sort then for top-level rust build
 MODULE_$(MODULE_CRATE_NAME)_CRATE_DEPS := $(DEP_CRATE_NAMES)
