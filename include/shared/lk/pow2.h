@@ -26,7 +26,7 @@
 #include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <compiler.h>
+#include <lk/compiler.h>
 
 __BEGIN_CDECLS;
 
@@ -72,6 +72,28 @@ static inline __ALWAYS_INLINE uint32_t round_up_pow2_u32(uint32_t v)
     v++;
     return v;
 }
+
+// expanded macro version of round_up_pow2_u32()
+#define _ROUND_UP_POW2_U32(v) (1 + \
+((((((((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) | \
+     (((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) >> 4))) | \
+   (((((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) | \
+     (((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) >> 4))) >> 2))) | \
+ (((((((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) | \
+     (((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) >> 4))) | \
+   (((((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) | \
+     (((v) | ((v) >> 16) | \
+      ((v) | ((v) >> 16) >> 8)) >> 4))) >> 2))) >> 1))))
+
+#define ROUND_UP_POW2_U32(v) _ROUND_UP_POW2_U32((v)-1)
+
 __END_CDECLS;
 
 #endif
