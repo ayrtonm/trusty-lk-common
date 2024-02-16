@@ -208,6 +208,7 @@ static inline uint64_t get_pfn_from_pde(uint64_t pde)
 arch_flags_t get_x86_arch_flags(arch_flags_t flags)
 {
     arch_flags_t arch_flags = 0;
+    uint cache_flag = flags & ARCH_MMU_FLAG_CACHE_MASK;
 
     if (!(flags & ARCH_MMU_FLAG_PERM_RO))
         arch_flags |= X86_MMU_PG_RW;
@@ -215,13 +216,36 @@ arch_flags_t get_x86_arch_flags(arch_flags_t flags)
     if (flags & ARCH_MMU_FLAG_PERM_USER)
         arch_flags |= X86_MMU_PG_U;
 
-    if (flags & ARCH_MMU_FLAG_UNCACHED)
+    if (cache_flag == ARCH_MMU_FLAG_UNCACHED ||
+        cache_flag == ARCH_MMU_FLAG_UNCACHED_DEVICE)
         arch_flags |= X86_MMU_CACHE_DISABLE;
 
     if (flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE)
         arch_flags |= X86_MMU_PG_NX;
 
     return arch_flags;
+}
+
+bool x86_mmu_check_flags(uint flags)
+{
+    uint cache_flag = flags & ARCH_MMU_FLAG_CACHE_MASK;
+    if (cache_flag != ARCH_MMU_FLAG_CACHED &&
+        cache_flag != ARCH_MMU_FLAG_UNCACHED &&
+        cache_flag != ARCH_MMU_FLAG_UNCACHED_DEVICE) {
+        LTRACEF("unsupported cache type: 0x%x, flags 0x%x\n",
+                cache_flag, flags);
+        return false;
+    }
+    uint unsupported_flags = flags & ~ARCH_MMU_FLAG_CACHE_MASK;
+    unsupported_flags &= ~ARCH_MMU_FLAG_PERM_RO;
+    unsupported_flags &= ~ARCH_MMU_FLAG_PERM_USER;
+    unsupported_flags &= ~ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+    if (unsupported_flags) {
+        LTRACEF("unsupported flags: 0x%x, flags 0x%x\n",
+                unsupported_flags, flags);
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -747,6 +771,10 @@ int arch_mmu_map(arch_aspace_t *aspace, vaddr_t vaddr, paddr_t paddr, size_t cou
 
     if (!x86_mmu_check_vaddr(vaddr))
         return ERR_INVALID_ARGS;
+
+    if (!x86_mmu_check_flags(flags)) {
+        return ERR_NOT_SUPPORTED;
+    }
 
     if (count == 0)
         return NO_ERROR;
