@@ -381,6 +381,7 @@ CPPFILT := $(CLANG_BINDIR)/llvm-cxxfilt
 SIZE := $(CLANG_BINDIR)/llvm-size
 NM := $(CLANG_BINDIR)/llvm-nm
 STRIP := $(CLANG_BINDIR)/llvm-strip
+RUSTC := $(RUST_BINDIR)/rustc
 
 # Save the toolchain paths in order to rebuild the world if they change. This is
 # needed to force a rebuild when changing compiler versions.
