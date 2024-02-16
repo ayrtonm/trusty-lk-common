@@ -24,6 +24,9 @@ CLANG_X86_64_TARGET_ABI ?= gnu
 
 ARCH_x86_COMPILEFLAGS += -target x86_64-$(CLANG_X86_64_TARGET_SYS)-$(CLANG_X86_64_TARGET_ABI)
 
+# Set Rust target to match clang target
+ARCH_x86_SUPPORTS_RUST := true
+ARCH_x86_RUSTFLAGS := --target=x86_64-unknown-trusty
 endif
 endif
 
