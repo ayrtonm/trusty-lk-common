@@ -23,10 +23,16 @@
 
 #include <err.h>
 #include <list.h>
-#include <shared/lk/macros.h>
 #include <kernel/thread.h>
 #include <lib/unittest/unittest.h>
 #include <lib/rand/rand.h>
+#include <platform.h>
+#include <shared/lk/macros.h>
+#include <sys/types.h>
+
+#define US2NS(us) ((us) * 1000LL)
+#define MS2NS(ms) (US2NS(ms) * 1000LL)
+#define S2NS(s) (MS2NS(s) * 1000LL)
 
 /* run test in thread that will exit on panic rather than halting execution */
 static int threadtest_run_in_thread(const char* thread_name,
@@ -118,6 +124,188 @@ TEST(threadtest, cookie_corruption_before_exit_must_panic) {
                                    thread_test_corrupt_cookie_before_exit_fn,
                                    NULL);
     EXPECT_EQ(ret, ERR_FAULT);
+}
+
+static int thread_blocking_fn(void *arg) {
+    wait_queue_t *queue = (wait_queue_t*)arg;
+
+    /* block so parent can corrupt cookie; ignore return value */
+    THREAD_LOCK(state);
+
+    wait_queue_block(queue, INFINITE_TIME);
+
+    /* should not get here - cookie corrupted by parent thread */
+    THREAD_UNLOCK(state);
+
+    return ERR_GENERIC;
+}
+
+/* sleep until a newly created thread is blocked on a wait queue */
+static status_t thread_sleep_until_blocked(thread_t *sleeper) {
+    int thread_state;
+    lk_time_ns_t now_ns = current_time_ns();
+    lk_time_ns_t timeout = now_ns + S2NS(10);
+
+    do {
+        thread_sleep_ns(MS2NS(100));
+
+        THREAD_LOCK(state);
+        thread_state = sleeper->state;
+        THREAD_UNLOCK(state);
+    } while ((now_ns = current_time_ns()) < timeout &&
+             thread_state != THREAD_BLOCKED);
+
+    return thread_state == THREAD_BLOCKED ? NO_ERROR : ERR_TIMED_OUT;
+}
+
+struct thread_queue_args {
+    wait_queue_t *queue;
+    thread_t *thread;
+};
+
+static int thread_corrupt_then_wake_fn(void *args) {
+    struct thread_queue_args *test_args = (struct thread_queue_args*)args;
+    wait_queue_t *queue = test_args->queue;
+    thread_t* sleeper = test_args->thread;
+
+    status_t res = thread_sleep_until_blocked(sleeper);
+
+    if (res != NO_ERROR || queue->count != 1)
+        return ERR_NOT_BLOCKED;
+
+    sleeper->cookie += 1; /* corrupt its cookie */
+
+    THREAD_LOCK(state);
+    wait_queue_wake_one(queue, true, NO_ERROR);
+
+    /* should not get here - above call should panic due to corrupt cookie */
+    THREAD_UNLOCK(state);
+test_abort:
+    return ERR_GENERIC;
+}
+
+TEST(threadtest, cookie_corruption_detected_after_wakeup) {
+    int ret;
+    wait_queue_t queue;
+    thread_t *sleeping_thread;
+    uint64_t expected_cookie;
+
+    wait_queue_init(&queue);
+    sleeping_thread = thread_create("sleeping thread", &thread_blocking_fn,
+                                    &queue, DEFAULT_PRIORITY,
+                                    DEFAULT_STACK_SIZE);
+    ASSERT_NE(sleeping_thread, NULL);
+    expected_cookie = sleeping_thread->cookie;
+    thread_set_flag_exit_on_panic(sleeping_thread, true);
+
+    thread_resume(sleeping_thread);
+
+    struct thread_queue_args test_args = {
+        .queue = &queue,
+        .thread = sleeping_thread,
+    };
+
+    ret = threadtest_run_in_thread("waking thread",
+                                   thread_corrupt_then_wake_fn,
+                                   &test_args);
+
+    ASSERT_EQ(ret, ERR_FAULT);
+
+    /* sleeping thread got taken out of wait queue but is still blocked */
+    ASSERT_EQ(sleeping_thread->state, THREAD_BLOCKED);
+    ASSERT_EQ(list_in_list(&sleeping_thread->queue_node), false);
+    ASSERT_EQ(queue.count, 0);
+
+test_abort:;
+    THREAD_LOCK(state);
+    if (sleeping_thread && sleeping_thread->cookie != expected_cookie) {
+        /* wake one detected corrupted cookie, recover state before cleanup */
+        sleeping_thread->cookie = expected_cookie;
+
+        /* put the thread back on the wait queue and increment its count */
+        list_add_head(&queue.list, &sleeping_thread->queue_node);
+        queue.count++;
+    }
+
+    /* this will retry wake operation on sleeping thread with valid cookie */
+    wait_queue_destroy(&queue, true);
+    THREAD_UNLOCK(state);
+
+    if (sleeping_thread) {
+        /* release test thread - must happen after we release the thread lock */
+        thread_join(sleeping_thread, NULL, INFINITE_TIME);
+    }
+}
+
+static int thread_fake_then_wake_fn(void *args) {
+    struct thread_queue_args *test_args = (struct thread_queue_args*)args;
+    wait_queue_t *queue = test_args->queue;
+    thread_t fake, *sleeper = test_args->thread;
+
+    status_t res = thread_sleep_until_blocked(sleeper);
+
+    if (res != NO_ERROR || queue->count != 1)
+        return ERR_NOT_BLOCKED;
+
+    /*
+     * Create a fake thread without updating its cookie. Since thread cookies
+     * are address dependent, the cookie checks should detect the fake thread.
+     */
+    memcpy(&fake, sleeper, sizeof(thread_t));
+
+    /* add the fake thread to the head of the wait queue */
+    list_add_head(&queue->list, &fake.queue_node);
+    queue->count++;
+
+    THREAD_LOCK(state);
+    wait_queue_wake_one(queue, true, NO_ERROR);
+
+    /* should not get here - above call should panic due to corrupt cookie */
+    THREAD_UNLOCK(state);
+test_abort:
+    return ERR_GENERIC;
+}
+
+TEST(threadtest, fake_thread_struct_detected_after_wakeup) {
+    int ret;
+    wait_queue_t queue;
+    thread_t *sleeping_thread;
+
+    wait_queue_init(&queue);
+    sleeping_thread = thread_create("sleeping thread", &thread_blocking_fn,
+                                    &queue, DEFAULT_PRIORITY,
+                                    DEFAULT_STACK_SIZE);
+    ASSERT_NE(sleeping_thread, NULL);
+    thread_set_flag_exit_on_panic(sleeping_thread, true);
+
+    thread_resume(sleeping_thread);
+
+    struct thread_queue_args test_args = {
+        .queue = &queue,
+        .thread = sleeping_thread,
+    };
+
+    ret = threadtest_run_in_thread("faking thread",
+                                   thread_fake_then_wake_fn,
+                                   &test_args);
+
+    ASSERT_EQ(ret, ERR_FAULT);
+
+    /* sleeping thread should still be blocked on wait queue */
+    ASSERT_EQ(sleeping_thread->state, THREAD_BLOCKED);
+    ASSERT_EQ(sleeping_thread->blocking_wait_queue, &queue);
+    ASSERT_EQ(queue.count, 1);
+
+test_abort:;
+    THREAD_LOCK(state);
+    /* this will unblock the sleeping thread before destroying the wait queue */
+    wait_queue_destroy(&queue, true);
+    THREAD_UNLOCK(state);
+
+    if (sleeping_thread) {
+        /* release test thread - must happen after we release the thread lock */
+        thread_join(sleeping_thread, NULL, INFINITE_TIME);
+    }
 }
 
 static int cookie_tester(void *_unused) {
