@@ -91,16 +91,10 @@ static bool arm_gic_interrupt_change_allowed(int irq)
     TRACEF("change to interrupt %d ignored after booting ns\n", irq);
     return false;
 }
-
-static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd);
 #else
 static bool arm_gic_interrupt_change_allowed(int irq)
 {
     return true;
-}
-
-static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd)
-{
 }
 #endif
 
@@ -232,7 +226,6 @@ static void arm_gic_suspend_cpu(uint level)
 #if GIC_VERSION > 2
     arm_gicv3_suspend_cpu(arch_curr_cpu_num());
 #endif
-    suspend_resume_fiq(false, false);
 }
 
 LK_INIT_HOOK_FLAGS(arm_gic_suspend_cpu, arm_gic_suspend_cpu,
@@ -272,7 +265,6 @@ static void arm_gic_resume_cpu(uint level)
     }
 #endif
     spin_unlock_restore(&gicd_lock, state, GICD_LOCK_FLAGS);
-    suspend_resume_fiq(false, resume_gicd);
 }
 
 LK_INIT_HOOK_FLAGS(arm_gic_resume_cpu, arm_gic_resume_cpu,
@@ -673,88 +665,6 @@ long smc_intc_get_next_irq(struct smc32_args *args)
     return ret;
 }
 
-static u_long enabled_fiq_mask[BITMAP_NUM_WORDS(MAX_INT)];
-
-static void bitmap_update_locked(u_long *bitmap, u_int bit, bool set)
-{
-    u_long mask = 1UL << BITMAP_BIT_IN_WORD(bit);
-
-    bitmap += BITMAP_WORD(bit);
-    if (set)
-        *bitmap |= mask;
-    else
-        *bitmap &= ~mask;
-}
-
-long smc_intc_request_fiq(struct smc32_args *args)
-{
-    u_int fiq = args->params[0];
-    bool enable = args->params[1];
-    spin_lock_saved_state_t state;
-
-    dprintf(SPEW, "%s: fiq %d, enable %d\n", __func__, fiq, enable);
-    spin_lock_save(&gicd_lock, &state, GICD_LOCK_FLAGS);
-
-    arm_gic_set_secure_locked(fiq, true);
-    arm_gic_set_target_locked(fiq, ~0U, ~0U);
-    arm_gic_set_priority_locked(fiq, 0);
-
-    gic_set_enable(fiq, enable);
-    bitmap_update_locked(enabled_fiq_mask, fiq, enable);
-
-    dprintf(SPEW, "%s: fiq %d, enable %d done\n", __func__, fiq, enable);
-
-    spin_unlock_restore(&gicd_lock, state, GICD_LOCK_FLAGS);
-
-    return NO_ERROR;
-}
-
-long smc_intc_fiq_resume(struct smc32_args *args)
-{
-    suspend_resume_fiq(true, false);
-
-    return 0;
-}
-
-static u_int current_fiq[8] = { 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff, 0x3ff };
-
-static bool update_fiq_targets(u_int cpu, bool enable, u_int triggered_fiq, bool resume_gicd)
-{
-    u_int i, j;
-    u_long mask;
-    u_int fiq;
-    bool smp = arm_gic_max_cpu() > 0;
-    bool ret = false;
-
-    spin_lock(&gicd_lock); /* IRQs and FIQs are already masked */
-    for (i = 0; i < BITMAP_NUM_WORDS(MAX_INT); i++) {
-        mask = enabled_fiq_mask[i];
-        while (mask) {
-            j = _ffz(~mask);
-            mask &= ~(1UL << j);
-            fiq = i * BITMAP_BITS_PER_WORD + j;
-            if (fiq == triggered_fiq)
-                ret = true;
-            LTRACEF("cpu %d, irq %i, enable %d\n", cpu, fiq, enable);
-            if (smp)
-                arm_gic_set_target_locked(fiq, 1U << cpu, enable ? ~0U : 0);
-            if (!smp || resume_gicd)
-                gic_set_enable(fiq, enable || smp);
-        }
-    }
-    spin_unlock(&gicd_lock);
-    return ret;
-}
-
-static void suspend_resume_fiq(bool resume_gicc, bool resume_gicd)
-{
-    u_int cpu = arch_curr_cpu_num();
-
-    ASSERT(cpu < 8);
-
-    update_fiq_targets(cpu, resume_gicc, UINT_MAX, resume_gicd);
-}
-
 void sm_intc_enable_interrupts(void)
 {
 #if ARM_GIC_USE_DOORBELL_NS_IRQ
@@ -771,7 +681,6 @@ status_t sm_intc_fiq_enter(void)
 #else
     u_int irq = GICCREG_READ(0, GICC_IAR) & 0x3ff;
 #endif
-    bool fiq_enabled;
 
     LTRACEF("cpu %d, irq %i\n", cpu, irq);
 
@@ -787,48 +696,18 @@ status_t sm_intc_fiq_enter(void)
             GICCREG_WRITE(0, icc_asgi1r_el1, val);
         }
 #else
-        ASSERT(cpu < 8);
-        LTRACEF("spurious fiq: cpu %d, old %d, new %d\n", cpu, current_fiq[cpu], irq);
+        LTRACEF("spurious fiq: cpu %d, new %d\n", cpu, irq);
 #endif
         return ERR_NO_MSG;
     }
 
-    ASSERT(cpu < 8);
-
-    fiq_enabled = update_fiq_targets(cpu, false, irq, false);
 #if GIC_VERSION > 2
     GICCREG_WRITE(0, icc_eoir0_el1, irq);
 #else
     GICCREG_WRITE(0, GICC_EOIR, irq);
 #endif
 
-    if (current_fiq[cpu] != 0x3ff) {
-        dprintf(INFO, "more than one fiq active: cpu %d, old %d, new %d\n", cpu, current_fiq[cpu], irq);
-        return ERR_ALREADY_STARTED;
-    }
-
-    if (!fiq_enabled) {
-        dprintf(INFO, "got disabled fiq: cpu %d, new %d\n", cpu, irq);
-        return ERR_NOT_READY;
-    }
-
-    current_fiq[cpu] = irq;
-
-    return 0;
-}
-
-void sm_intc_fiq_exit(void)
-{
-    u_int cpu = arch_curr_cpu_num();
-
-    ASSERT(cpu < 8);
-
-    LTRACEF("cpu %d, irq %i\n", cpu, current_fiq[cpu]);
-    if (current_fiq[cpu] == 0x3ff) {
-        dprintf(INFO, "%s: no fiq active, cpu %d\n", __func__, cpu);
-        return;
-    }
-    update_fiq_targets(cpu, true, current_fiq[cpu], false);
-    current_fiq[cpu] = 0x3ff;
+    dprintf(INFO, "got disabled fiq: cpu %d, new %d\n", cpu, irq);
+    return ERR_NOT_READY;
 }
 #endif

@@ -194,19 +194,9 @@ long smc_intc_get_next_irq(struct smc32_args* args) {
     return -1;
 }
 
-long smc_intc_request_fiq(struct smc32_args* args) {
-    return ERR_NOT_SUPPORTED;
-}
-
-long smc_intc_fiq_resume(struct smc32_args* args) {
-    return ERR_NOT_SUPPORTED;
-}
-
 status_t sm_intc_fiq_enter(void) {
     return NO_ERROR;
 }
-
-void sm_intc_fiq_exit(void) {}
 
 void sm_intc_enable_interrupts(void) {}
 #endif
