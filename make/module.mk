@@ -35,6 +35,11 @@
 #
 # include make/module.mk
 
+# if QUERY_MODULE is set, the rules.mk that included us was itself included not
+# to define a module's make targets but to query the variables it sets for the
+# rest of the build. in this case, skip all further processing
+ifeq ($(QUERY_MODULE),)
+
 # test for old style rules.mk
 ifneq ($(MODULE_OBJS),)
 $(warning MODULE_OBJS = $(MODULE_OBJS))
@@ -353,3 +358,5 @@ MODULE_RUSTDOC_OBJECT :=
 MODULE_RUSTDOCFLAGS :=
 MODULE_KERNEL_RUST_DEPS :=
 MODULE_SKIP_DOCS :=
+
+endif # QUERY_MODULE (this line should stay after all other processing)
