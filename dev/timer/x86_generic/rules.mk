@@ -8,4 +8,7 @@ GLOBAL_DEFINES += \
 MODULE_SRCS += \
 	$(LOCAL_DIR)/x86_pit.c
 
+MODULE_DEPS += \
+	lib/fixed_point \
+
 include make/module.mk
