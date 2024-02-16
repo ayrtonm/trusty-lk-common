@@ -24,6 +24,7 @@
  */
 #include <asm.h>
 #include <arch/x86/descriptor.h>
+#include <arch/x86/exceptions.h>
 
 #define NUM_INT 0x100
 #define NUM_EXC 0x14
@@ -149,7 +150,11 @@ DATA(_idt)
 .rept NUM_INT
     .short 0        /* low 16 bits of ISR offset (_isr#i & 0FFFFh) */
     .short CODE_64_SELECTOR   /* selector */
+.if i == INT_DOUBLE_FAULT /* Use dedicated stack ist1 for Double Fault Exception */
+    .byte  1
+.else
     .byte  0
+.endif
     .byte  0x8e     /* present, ring 0, 64-bit interrupt gate */
     .short  0       /* high 16 bits of ISR offset (_isr#i / 65536) */
     .short  0       /* ISR offset */
