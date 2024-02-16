@@ -40,34 +40,20 @@
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002
 
 #define MSR_EFER    0xc0000080
-#define EFER_LME    0x00000100
 #define EFER_NXE    0x00000800
 #define MSR_GS_BASE 0xc0000101
 
 #define PHYS(x) ((x) - KERNEL_BASE + MEMBASE)
 
 #define PAGE_MASK               0xfff
-#define PAGE_ALIGN_32BIT        0xfffff000
 #define ONE_GB                  0x40000000
-#define X86_MMU_PG_NX_IN_HIGH   (1 << 31)
 #define ADDR_OFFSET_MASK        ((1 << ADDR_OFFSET) - 1)
+#define MAX_MEM_SIZE            (0xFFFFFFFFFFFFFFFF - KERNEL_BASE)
+#define X86_PAGE_ALIGN          (0xFFFFFFFFFFFFF000)
 
-/*
- * KERNEL_BASE is 64-bit, we cannot operate 64b-bit integer in 32-bit mode,
- * in order to calculate which PML4E and PDPTE should be filled, right shift
- * 30 bits to get KERNEL_BASE in GB.
- */
-#define KERNEL_BASE_IN_GB ((KERNEL_BASE >> 30) & 0xFFFFFFFF)
-
-/*
- * We create mapping in 4KB granularity, check whether maxium memory size
- * is valid for Trusty LK in 4KB granularity.
- */
-#define KERNEL_BASE_IN_PAGE ((KERNEL_BASE >> PAGE_DIV_SHIFT) & 0xFFFFFFFF)
-#define MAX_MEM_SIZE_IN_PAGE (0xFFFFFFFF - KERNEL_BASE_IN_PAGE)
 
 .section ".text.boot"
-.code32
+.code64
 
 /*
  * Macro used to fill in an entry in the page table for the region of memory
@@ -83,22 +69,23 @@
  *         This argument should be 0 when fill in PDPT table.
  */
 .macro map_kernel_base table, entry, shift
-    movl $KERNEL_BASE_IN_GB, %ecx
-    shrl \shift, %ecx
-    andl $ADDR_OFFSET_MASK, %ecx
-    shll $3, %ecx
-    movl $PHYS(\entry), %eax
-    orl  $X86_KERNEL_PD_FLAGS, %eax
-    movl $PHYS(\table), %edi
-    addl %ecx, %edi
-    movl %eax, (%edi)
+    movq $KERNEL_BASE, %rcx
+    shrq $30, %rcx
+    shrq \shift, %rcx
+    andq $ADDR_OFFSET_MASK, %rcx
+    shlq $3, %rcx
+    movq $PHYS(\entry), %rax
+    orq  $X86_KERNEL_PD_FLAGS, %rax
+    movq $PHYS(\table), %rdi
+    addq %rcx, %rdi
+    movq %rax, (%rdi)
 .endm
 
 /*
  * Macro used to fill in an entry in PD or PT in page table.
  * Before invoking this macro, please fill in:
- *   EDI:  address of first entry to be filled
- *   ECX:  numbers of entry to be filled
+ *   RDI:  address of first entry to be filled
+ *   RCX:  numbers of entry to be filled
  * Input:
  *   src_addr: base address of PT if fill in PDE
  *             base address of physical address if fill in PTE
@@ -106,194 +93,254 @@
  *             X86_KERNEL_PD_LP_FLAGS if fill in PTE
  */
 .macro fill_page_table_entry src_addr, attr
-    movl \src_addr, %esi
-    orl  \attr, %esi
-    xorl %eax, %eax
+    movq \src_addr, %rsi
+    orq  \attr, %rsi
+    xorq %rax, %rax
 .Lfill_entry_\@:
-    movl %eax, %edx
-    shll $PAGE_DIV_SHIFT, %edx
-    addl %esi, %edx
-    movl %edx, (%edi)
-    incl %eax
-    addl $8, %edi
+    movq %rax, %rdx
+    shlq $PAGE_DIV_SHIFT, %rdx
+    addq %rsi, %rdx
+    movq %rdx, (%rdi)
+    incq %rax
+    addq $8, %rdi
     loop .Lfill_entry_\@
+.endm
+
+.macro map_trampoline
+    movq $PHYS(pdpt_trampoline), %rsi
+    orq  $X86_KERNEL_PD_FLAGS, %rsi
+    movq %rsi, PHYS(pml4)
+
+    /* update corresponding trampoline PDPTE, it covers 1GB */
+    movq $MEMBASE, %rax
+    shrq $30, %rax
+    andq $0x1ff, %rax
+    shlq $3, %rax
+    movq $PHYS(pdpt_trampoline), %rdi
+    addq %rax, %rdi
+    movq $PHYS(pd_trampoline), %rsi
+    orq  $X86_KERNEL_PD_FLAGS, %rsi
+    movq %rsi, (%rdi)
+
+    /* update corresponding trampoline PDE for bootstrap, it covers 2MB */
+    movq $MEMBASE, %rax
+    addq $KERNEL_LOAD_OFFSET, %rax
+    shrq $21, %rax
+    andq $0x1ff, %rax
+    shlq $3, %rax
+    movq $PHYS(pd_trampoline), %rdi
+    addq %rax, %rdi
+    movq $PHYS(pt_trampoline), %rsi
+    orq $X86_KERNEL_PD_FLAGS, %rsi
+    movq %rsi, (%rdi)
+
+    /* update corresponding trampoline PTE for bootstrap, it covers 4KB */
+    movq $KERNEL_LOAD_OFFSET, %rax
+    shrq $PAGE_DIV_SHIFT, %rax
+    andq $0x1ff, %rax
+    shlq $3, %rax
+    movq $PHYS(pt_trampoline), %rdi
+    addq %rax, %rdi
+    movq $MEMBASE, %rsi
+    addq $KERNEL_LOAD_OFFSET, %rsi
+    andq $X86_PAGE_ALIGN, %rsi
+    orq  $X86_KERNEL_PD_LP_FLAGS, %rsi
+    movq %rsi, (%rdi)
+
+    /* Check whether gdtr and bootstrap code share same PDE */
+    movq $MEMBASE, %rax
+    addq $KERNEL_LOAD_OFFSET, %rax
+    movq $PHYS(_gdtr_phys), %rcx
+    /* RCX indicates (_gdtr_phys - MEMBASE - KERNEL_LOAD_OFFSET) */
+    subq %rax, %rcx
+    /* RCX = RCX / 2MB */
+    shrq $21, %rcx
+    /* _gdtr_phys and MEMBASE use different PDEs */
+    jnz .Luse_different_pde
+    /* _gdtr_phys and MEMBASE share same PDE */
+    movq $PHYS(pt_trampoline), %rdi
+    jmp .Lshare_same_pde
+
+.Luse_different_pde:
+    /* update corresponding trampoline PDE for GDT, it covers 2MB */
+    movq $PHYS(_gdtr_phys), %rax
+    shrq $21, %rax
+    andq $0x1ff, %rax
+    shlq $3, %rax
+    movq $PHYS(pd_trampoline), %rdi
+    addq %rax, %rdi
+    movq $PHYS(pt_trampoline_gdt), %rsi
+    orq $X86_KERNEL_PD_FLAGS, %rsi
+    movq %rsi, (%rdi)
+
+    movq $PHYS(pt_trampoline_gdt), %rdi
+.Lshare_same_pde:
+    /* update corresponding trampoline PTE for GDT, it covers 4KB */
+    movq $PHYS(_gdtr_phys), %rax
+    shrq $PAGE_DIV_SHIFT, %rax
+    andq $0x1ff, %rax
+    shlq $3, %rax
+    addq %rax, %rdi
+    movq $PHYS(_gdtr_phys), %rsi
+    orq  $X86_KERNEL_PD_LP_FLAGS, %rsi
+    movq %rsi, (%rdi)
 .endm
 
 /* Macro used to update mapping attribute for each section */
 .macro update_mapping_attribute_of_each_section
-    leal PHYS(pt), %edi
-    movl $KERNEL_LOAD_OFFSET, %ecx
-    shrl $PAGE_DIV_SHIFT, %ecx
-    shll $3, %ecx
-    addl %ecx, %edi
+    leaq PHYS(pt), %rdi
+    movq $KERNEL_LOAD_OFFSET, %rcx
+    shrq $PAGE_DIV_SHIFT, %rcx
+    shlq $3, %rcx
+    addq %rcx, %rdi
 
-    /* do not use symbol directly, since we are in 32-bit */
-    movl $PHYS(__code_start), %eax
-    movl $PHYS(__code_end), %ecx
-    addl $PAGE_MASK, %ecx
-    subl %eax, %ecx
-    shrl $PAGE_DIV_SHIFT, %ecx
+    movq $__code_start, %rax
+    movq $__code_end, %rcx
+    addq $PAGE_MASK, %rcx
+    subq %rax, %rcx
+    shrq $PAGE_DIV_SHIFT, %rcx
 
     /* clear R/W bit in pte */
 .Lupdate_code_section:
-    movl (%edi), %edx
-    andl $~X86_MMU_PG_RW, %edx
-    movl %edx, (%edi)
-    addl $8, %edi
+    movq (%rdi), %rdx
+    andq $~X86_MMU_PG_RW, %rdx
+    movq %rdx, (%rdi)
+    addq $8, %rdi
     loop .Lupdate_code_section
 
-    /* from now, EDI indicates physical address of __rodata_start */
-    movl $PHYS(__rodata_start), %eax
-    movl $PHYS(__rodata_end), %ecx
-    addl $PAGE_MASK, %ecx
-    subl %eax, %ecx
-    shrl $PAGE_DIV_SHIFT, %ecx
+    /* from now, RDI indicates virtual address of __rodata_start */
+    movq $__rodata_start, %rax
+    movq $__rodata_end, %rcx
+    addq $PAGE_MASK, %rcx
+    subq %rax, %rcx
+    shrq $PAGE_DIV_SHIFT, %rcx
 
     /* clear R/W bit and set XD bit in pte */
 .Lupdate_rodata_section:
-    movl (%edi), %edx
-    andl $~X86_MMU_PG_RW, %edx
-    movl %edx, (%edi)
-    leal 4(%edi), %esi
-    movl (%esi), %edx
-    orl  $X86_MMU_PG_NX_IN_HIGH, %edx
-    movl %edx, (%esi)
-    addl $8, %edi
+    movq (%rdi), %rdx
+    andq $~X86_MMU_PG_RW, %rdx
+    btsq $63, %rdx
+    movq %rdx, (%rdi)
+    addq $8, %rdi
     loop .Lupdate_rodata_section
 
-    /* from now, EDI indicates physical address of __data_start */
-    movl $PHYS(__data_start), %eax
-    movl $PHYS(__data_end), %ecx
-    addl $PAGE_MASK, %ecx
-    subl %eax, %ecx
-    shrl $PAGE_DIV_SHIFT, %ecx
+    /* from now, RDI indicates virtual address of __data_start */
+    movq $__data_start, %rax
+    movq $__data_end, %rcx
+    addq $PAGE_MASK, %rcx
+    subq %rax, %rcx
+    shrq $PAGE_DIV_SHIFT, %rcx
 
     /* set XD bit in pte */
 .Lupdate_data_section:
-    leal 4(%edi), %esi
-    movl (%esi), %edx
-    orl  $X86_MMU_PG_NX_IN_HIGH, %edx
-    movl %edx, (%esi)
-    addl $8, %edi
+    movq (%rdi), %rdx
+    btsq $63, %rdx
+    movq %rdx, (%rdi)
+    addq $8, %rdi
     loop .Lupdate_data_section
 
-    /* from now, EDI indicates physical address of __bss_start */
-    movl $PHYS(__bss_start), %eax
-    movl $PHYS(__bss_end), %ecx
-    addl $PAGE_MASK, %ecx
-    subl %eax, %ecx
-    shrl $PAGE_DIV_SHIFT, %ecx
+    /* from now, RDI indicates virtual address of __bss_start */
+    movq $__bss_start, %rax
+    movq $__bss_end, %rcx
+    addq $PAGE_MASK, %rcx
+    subq %rax, %rcx
+    shrq $PAGE_DIV_SHIFT, %rcx
 
     /* set XD bit in pte */
 .Lupdate_bss_section:
-    leal 4(%edi), %esi
-    movl (%esi), %edx
-    orl  $X86_MMU_PG_NX_IN_HIGH, %edx
-    movl %edx, (%esi)
-    addl $8, %edi
+    movq (%rdi), %rdx
+    btsq $63, %rdx
+    movq %rdx, (%rdi)
+    addq $8, %rdi
     loop .Lupdate_bss_section
 .endm
 
 /* add mapping up to upper_mem, upper_mem suppports up to 512GB */
 .macro map_up_to_uppper_memory
-    /* we have already mapped to MEMBASE+KERNEL_LOAD_OFFSET+1GB */
-    movl $ONE_GB, %eax
-    shrl $PAGE_DIV_SHIFT, %eax
+    leaq mmu_initial_mappings, %rdi
+    movq 0x10(%edi), %r9
 
-    leal PHYS(mmu_initial_mappings), %edi
-    movl 0x10(%edi), %edx
-    movl 0x14(%edi), %ebx
-    shrl $PAGE_DIV_SHIFT, %edx
-    shll $20, %ebx
-    /* EBX indicates totally how many pages(4KB) should be mapped */
-    addl %edx, %ebx
+    subq $ONE_GB, %r9
+    /* RBX stores how many pages(4KB) still unmapped */
+    shrq $PAGE_DIV_SHIFT, %r9
 
-    /* EBX stores how many pages(4KB) still unmapped */
-    subl %eax, %ebx
-
-    movl %ebx, %ecx
-    /* upalign memory size to GB */
-    addl $0x3ffff, %ecx
-    /* ECX indicates how many GB should be mapped */
-    shrl $18, %ecx
+    movq %r9, %rcx
+    /* up round memory size to GB */
+    addq $0x3ffff, %rcx
+    /* RCX indicates how many GB should be mapped */
+    shrq $18, %rcx
 
     /* start to allocate boot memory for PDs */
-    movl $PHYS(boot_alloc_end), %edi
-    movl (%edi), %edx
-    /* upalign to page size */
-    addl $PAGE_MASK, %edx
-    /* EDX indicates new PD base address (page aligned address of _end) */
-    andl $PAGE_ALIGN_32BIT, %edx
+    movq $PHYS(boot_alloc_end), %rdi
+    movq (%rdi), %rdx
+    /* up round to page size */
+    addq $PAGE_MASK, %rdx
+    /* RDX indicates new PD base address (page aligned address of _end) */
+    andq $X86_PAGE_ALIGN, %rdx
 
-    /* store first new PD base address in ESI */
-    movl %edx, %esi
-    orl  $X86_KERNEL_PD_FLAGS, %edx
+    /* store first new PD base address in RSI */
+    movq %rdx, %rsi
+    orq  $X86_KERNEL_PD_FLAGS, %rdx
 
-    movl $PHYS(pdpt), %edi
-    movl $KERNEL_BASE_IN_GB, %eax
-    /* EAX indicates PDPTE we have already mapped */
-    andl $ADDR_OFFSET_MASK, %eax
-    /* EAX indicates PDPTE we should start to fill in now */
-    incl %eax
-    shll $3, %eax
-    addl %eax, %edi
+    movq $PHYS(pdpt), %rdi
+    movq $KERNEL_BASE, %rax
+    /* RAX indicates PDPTE we have already mapped */
+    andq $ADDR_OFFSET_MASK, %rax
+    /* RAX indicates PDPTE we should start to fill in now */
+    incq %rax
+    shlq $3, %rax
+    addq %rax, %rdi
 .Lfill_upper_mem_pdpte:
-    movl %edx, (%edi)
-    addl $0x4, %edi
-    movl $0, (%edi)
-    addl $PAGE_SIZE, %edx
-    addl $0x4, %edi
+    movq %rdx, (%rdi)
+    addq $0x4, %rdi
+    movq $0, (%rdi)
+    addq $PAGE_SIZE, %rdx
+    addq $0x4, %rdi
     loop .Lfill_upper_mem_pdpte
 
-    /* EDI indicates PDE we should start to fill in */
-    movl %esi, %edi
-    /* EDX indicates new PT base address with page directory attribute */
-    movl %edx, %esi
-    /* ESI indicates base address of first PTE now */
-    andl $PAGE_ALIGN_32BIT, %esi
+    /* RDI indicates PDE we should start to fill in */
+    movq %rsi, %rdi
+    /* RDX indicates new PT base address with page directory attribute */
+    movq %rdx, %rsi
+    /* RSI indicates base address of first PTE now */
+    andq $X86_PAGE_ALIGN, %rsi
 
-    movl %ebx, %ecx
-    /* upalign to 2MB */
-    addl $ADDR_OFFSET_MASK, %ecx
-    /* ECX indicates how many 2MB should be mapped */
-    shrl $9, %ecx
+    movq %r9, %rcx
+    /* upround to 2MB */
+    addq $ADDR_OFFSET_MASK, %rcx
+    /* RCX indicates how many 2MB should be mapped */
+    shrq $9, %rcx
 
 .Lfill_upper_mem_pde:
-    movl %edx, (%edi)
-    addl $0x4, %edi
-    movl $0, (%edi)
-    addl $PAGE_SIZE, %edx
-    addl $0x4, %edi
+    movq %rdx, (%rdi)
+    addq $0x4, %rdi
+    movq $0, (%rdi)
+    addq $PAGE_SIZE, %rdx
+    addq $0x4, %rdi
     loop .Lfill_upper_mem_pde
 
-    movl $MEMBASE, %eax
-    addl $ONE_GB, %eax
+    movq $MEMBASE, %rax
+    addq $ONE_GB, %rax
     /* we have already mapped up to PA MEMBASE+KERNEL_LOAD_OFFSET+1GB */
-    addl $KERNEL_LOAD_OFFSET, %eax
-    /* EAX indicates first index of 4KB physical address to fill in PTE */
-    shrl $PAGE_DIV_SHIFT, %eax
+    addq $KERNEL_LOAD_OFFSET, %rax
+    /* RAX indicates first index of 4KB physical address to fill in PTE */
+    shrq $PAGE_DIV_SHIFT, %rax
     /* ECX indicates how many PTEs should be filled */
-    movl %ebx, %ecx
-    movl %edx, %ebx
-    /* EBX incates page aligned address behind last PT */
-    andl $PAGE_ALIGN_32BIT, %ebx
+    movq %r9, %rcx
+    movq %rdx, %r9
+    /* RBX incates page aligned address behind last PT */
+    andq $X86_PAGE_ALIGN, %r9
 .Lfill_upper_mem_pte:
-    movl %eax, %edx
-    /* EDX indicates high 32-bit value of physical address */
-    shrl $20, %edx
-    movl 4(%esi), %edi
-    movl %edx, (%edi)
-    movl %eax, %edx
-    /* EDX indicates low 32-bit value of physical address */
-    shll $12, %edx
-    addl $X86_KERNEL_PD_LP_FLAGS, %edx
-    movl %edx, (%esi)
-    incl %eax
-    addl $8, %esi
+    movq %rax, %rdx
+    shlq $PAGE_DIV_SHIFT, %rdx
+    addq $X86_KERNEL_PD_LP_FLAGS, %rdx
+    movq %rdx, (%rsi)
+    incq %rax
+    addq $8, %rsi
     loop .Lfill_upper_mem_pte
 
-    movl $PHYS(boot_alloc_end), %edi
-    movl %ebx, (%edi)
+    movq $PHYS(boot_alloc_end), %rdi
+    movq %r9, (%edi)
 .endm
 
 .global _start
@@ -325,199 +372,77 @@ multiboot_header:
 #endif
 
 real_start:
-    cmpl $MULTIBOOT_BOOTLOADER_MAGIC, %eax
+    cmpq $MULTIBOOT_BOOTLOADER_MAGIC, %rax
 
     jne .Lno_multiboot_info
-    movl %ebx, PHYS(_multiboot_info)
+    movq %rbx, PHYS(_multiboot_info)
 
-    /* ESI stores multiboot info address */
-    leal (%ebx), %esi
+    /* RSI stores multiboot info address */
+    leaq (%rbx), %rsi
 
     /*
      * first member in multiboot info structure is flag. If bit 0 in the flag
      * word is set, then mem_lower and mem_high indicate the amount of lower
      * and upper memory in kilobytes. Currently, we support this mode only.
      */
-    movl 0(%esi), %ecx
-    andl $0x1, %ecx
+    movq 0(%rsi), %rcx
+    andq $0x1, %rcx
     jz  .Lno_multiboot_info
 
     /* ECX stores high memory (KB) provided by multiboot info */
-    movl 0x8(%esi), %ecx
+    movl 0x8(%rsi), %ecx
 
     /* halt machine if memory size to small */
-    movl $PHYS(__bss_end), %edx
-    movl $PHYS(__code_start), %eax
-    subl %eax, %edx
-    addl $MEMBASE, %edx
-    shrl $10, %edx
-    cmpl %edx, %ecx
+    movq $__bss_end, %rdx
+    movq $__code_start, %rax
+    subq %rax, %rdx
+    addq $MEMBASE, %rdx
+    shrq $10, %rdx
+    cmpq %rdx, %rcx
     jc .Lhalt
 
-    movl %ecx, %edx
-    shrl $2, %edx
-    movl $MEMBASE, %eax
-    shrl $PAGE_DIV_SHIFT, %eax
+    movq %rcx, %rdx
+    /* RDX indicates high memory in bytes */
+    shlq $10, %rdx
+    movq $MEMBASE, %rax
 
-    /* EDX = (upper_mem - MEMBASE) / 4KB */
-    subl %eax, %edx
+    /* RDX indicates memory size in bytes */
+    subq %rax, %rdx
 
     /* halt machine if memory size to large */
-    cmpl $MAX_MEM_SIZE_IN_PAGE, %edx
+    cmpq $MAX_MEM_SIZE, %rdx
     jnc .Lhalt
 
-    /* EDX = (upper_mem - MEMBASE) / 4GB */
-    shrl $20, %edx
-    /* ECX = (upper_mem - MEMBASE) % 4GB */
-    shll $10, %ecx
-
-    leal PHYS(mmu_initial_mappings), %esi
+    leaq PHYS(mmu_initial_mappings), %rsi
     /*
-     * EDI points to size of first entry in mmu_initial_mappings.
+     * RDI points to size of first entry in mmu_initial_mappings.
      * Contents of this entry will be used to init pmm arena,
      * mmu_initial_mappings is defined in platform.c.
      */
-    leal 0x10(%esi), %edi
-    movl %ecx, (%edi)
-    movl %edx, 4(%edi)
+    leaq 0x10(%rsi), %rdi
+    movq %rdx, (%rdi)
 
 .Lno_multiboot_info:
 
-    /* load our new gdt by physical pointer */
-    lgdt PHYS(_gdtr_phys)
-
-    /* load our data selectors */
-    movw $DATA_SELECTOR, %ax
-    movw %ax, %ds
-    movw %ax, %es
-    movw %ax, %fs
-    movw %ax, %ss
-    movw %ax, %gs
-    movw %ax, %ss
-
-    /* load initial stack pointer */
-    movl $PHYS(_kstack + 4096), %esp
-
-    /* We need to jump to our sane 32 bit CS */
-    pushl $CODE_SELECTOR
-    pushl $PHYS(.Lfarjump)
-    lret
-
-.Lfarjump:
-
     /* zero the bss section */
 bss_setup:
-    movl $PHYS(__bss_start), %edi /* starting address of the bss */
-    movl $PHYS(__bss_end), %ecx   /* find the length of the bss in bytes */
-    subl %edi, %ecx
-    shrl $2, %ecx       /* convert to 32 bit words, since the bss is aligned anyway */
+    movq $PHYS(__bss_start), %rdi /* starting address of the bss */
+    movq $PHYS(__bss_end), %rcx   /* find the length of the bss in bytes */
+    subq %rdi, %rcx
+    shrq $2, %rcx       /* convert to 32 bit words, since the bss is aligned anyway */
 .Lzero_bss_sec:
-    movl $0, (%edi)
-    addl $4, %edi
+    movq $0, (%rdi)
+    addq $4, %rdi
     loop .Lzero_bss_sec
 
 paging_setup:
-    /*
-     * Preparing 64 bit paging, we will use 4KB pages covering upper memory
-     * for initial bootstrap, this page table will be 1 to 1
-     */
 
-    /* PAE bit must be enabled for 64 bit paging */
-    mov %cr4, %eax
-    btsl $(5), %eax
-    mov %eax, %cr4
-
-    /* load the physical pointer to the top level page table */
-    movl $PHYS(pml4_trampoline), %eax
-    mov %eax, %cr3
-
-    /* Long Mode Enabled at this point */
     movl $MSR_EFER ,%ecx
     rdmsr
-    orl $EFER_LME,%eax
     /* NXE bit should be set, since we update XD bit in page table */
     orl $EFER_NXE,%eax
     wrmsr
 
-    /* start to create mapping for bootstrap code */
-    /* setting the first PML4E with a PDP table reference */
-    movl $PHYS(pdpt_trampoline_low), %eax
-    orl  $X86_KERNEL_PD_FLAGS, %eax
-    movl %eax, PHYS(pml4_trampoline)
-
-    /* setting the first PDPTE with a Page table reference */
-    movl $PHYS(pd_trampoline_low), %eax
-    orl  $X86_KERNEL_PD_FLAGS, %eax
-    movl %eax, PHYS(pdpt_trampoline_low)
-
-    /* setting the corresponding PML4E to map from KERNEL_BASE */
-    map_kernel_base pml4_trampoline, pdpt_trampoline_high, $9
-
-    /* setting the corresponding PDPTE to map from KERNEL_BASE */
-    map_kernel_base pdpt_trampoline_high, pd_trampoline_high, $0
-
-    movl $KERNEL_BASE, %ecx
-    shrl $PD_SHIFT, %ecx
-    andl $ADDR_OFFSET_MASK, %ecx
-    shll $3, %ecx
-
-    movl $PHYS(pd_trampoline_high), %edi
-    addl %ecx, %edi
-
-    /* setting the corresponding PDE to map from KERNEL_BASE */
-    movl $PHYS(pt_trampoline), %esi
-    orl  $X86_KERNEL_PD_FLAGS, %esi
-    movl %esi, (%edi)
-
-    movl $MEMBASE, %eax
-    /* calculate offset of MEMBASE in PD */
-    shrl $PD_SHIFT, %eax
-    shll $3, %eax
-    movl $PHYS(pd_trampoline_low), %edi
-    addl %eax, %edi
-
-    /* setting PDE to map from MEMBASE */
-    movl $PHYS(pt_trampoline), %esi
-    orl  $X86_KERNEL_PD_FLAGS, %esi
-    movl %esi, (%edi)
-
-    movl $KERNEL_LOAD_OFFSET, %ecx
-    /* calculate offset of MEMBASE in PT */
-    shrl $PAGE_DIV_SHIFT, %ecx
-    shll $3, %ecx
-    movl $PHYS(pt_trampoline), %edi
-    addl %ecx, %edi
-
-    /* calculate PA start to map */
-    movl $MEMBASE, %eax
-    addl $KERNEL_LOAD_OFFSET, %eax
-
-    /* setting PTE to map PA from MEMBASE+KERNEL_LOAD_OFFSET */
-    orl  $X86_KERNEL_PD_LP_FLAGS, %eax
-    movl %eax, (%edi)
-
-    /*
-     * same formula for page where _gdt resides, since we need to
-     * update CS during mode switch.
-     * _gdt has been aligned to 4KB, it's safe to be used here
-     *
-     */
-    movl $PHYS(_gdt), %eax
-    movl $MEMBASE, %edx
-    subl %edx, %eax
-
-    /* calculate offset of PHYS(_gdt) in PT */
-    shrl $PAGE_DIV_SHIFT, %eax
-    shll $3, %eax
-    movl $PHYS(pt_trampoline), %edi
-    addl %eax, %edi
-
-    /* setting PTE to map PA from PHYS(_gdt) */
-    movl $PHYS(_gdt), %eax
-    orl  $X86_KERNEL_PD_LP_FLAGS, %eax
-    movl %eax, (%edi)
-
-    /* start to create mapping for run time */
     /* setting the corresponding PML4E to map from KERNEL_BASE */
     map_kernel_base pml4, pdpt, $9
 
@@ -528,87 +453,84 @@ paging_setup:
      * calculate memory size to be mapped
      * CAUTION: we have only reserved page tables to cover 1GB mapping
      */
-    leal PHYS(mmu_initial_mappings), %edx
-    /* ECX indicates low 32-bit mmu_initial_mappings[0].size */
-    movl 0x10(%edx), %ecx
-    /* EAX indicates high 32-bit mmu_initial_mappings[0].size */
-    movl 0x14(%edx), %eax
-    shrl $30, %ecx
-    shll $2, %eax
-    /* EAX indicates memsize in GB */
-    addl %ecx, %eax
+    leaq PHYS(mmu_initial_mappings), %rdx
+    /* RAX indicates mmu_initial_mappings[0].size */
+    movq 0x10(%rdx), %rax
+    /* RAX indicates memsize in GB */
+    shrq $30, %rax
 
     /* reload memsize in case memsize + MEMBASE < 1GB */
-    movl 0x10(%edx), %ecx
+    movl 0x10(%rdx), %ecx
     /*
-     * EAX indicates memsize + MEMBASE in GB
-     * ECX = (EAX > 1GB) ? (1GB - MEMBASE) : memsize
+     * RAX indicates memsize + MEMBASE in GB
+     * RCX = (RAX > 1GB) ? (1GB - MEMBASE) : memsize
      */
-    test %eax, %eax
+    test %rax, %rax
     jz  .Lsize_smaller_than_one_gb
     map_up_to_uppper_memory
-    movl $ONE_GB, %ecx
+    movq $ONE_GB, %rcx
 .Lsize_smaller_than_one_gb:
-    movl %ecx, %ebx
+    movq %rcx, %r9
     /* calculate offset of PD to map from KERNEL_BASE */
-    movl $KERNEL_BASE, %edx
-    shrl $PD_SHIFT, %edx
-    andl $ADDR_OFFSET_MASK, %edx
-    shll $3, %edx
-    movl $PHYS(pd), %edi
-    addl %edx, %edi
+    movq $KERNEL_BASE, %rdx
+    shrq $PD_SHIFT, %rdx
+    andq $ADDR_OFFSET_MASK, %rdx
+    shlq $3, %rdx
+    movq $PHYS(pd), %rdi
+    addq %rdx, %rdi
 
     /* calculate how many 2MB PDE should be used */
-    shrl $PD_SHIFT, %ecx
+    shrq $PD_SHIFT, %rcx
 
     /* fill in PDEs */
     fill_page_table_entry $PHYS(pt), $X86_KERNEL_PD_FLAGS
 
-    movl %ebx, %ecx
+    movq %r9, %rcx
     /* calculate how many 4KB PTE should be used */
-    shrl $PAGE_DIV_SHIFT, %ecx
-    movl $PHYS(pt), %edi
+    shrq $PAGE_DIV_SHIFT, %rcx
+    movq $PHYS(pt), %rdi
 
     /* fill in PTEs */
     fill_page_table_entry $MEMBASE, $X86_KERNEL_PD_LP_FLAGS
 
     update_mapping_attribute_of_each_section
 
-    /* enabling paging and we are in 32 bit compatibility mode */
-    movl %cr0, %eax
-    btsl $(31), %eax
-    movl %eax, %cr0
+    map_trampoline
 
-    /*
-     * stack for mode switch, since from this point stack
-     * provided by bootloader is not mapped any more
-     */
-    movl $PHYS(__kstack_tmp), %eax
-    movl %eax, %esp
-
-    /* Using another long jump to be on 64 bit mode
-    after this we will be on real 64 bit mode */
-    pushl $CODE_64_SELECTOR     /*Need to put it in a the right CS*/
-    pushl $PHYS(farjump64)
-    lret
-
-.align 8
-.code64
-farjump64:
-    /* branch to our high address */
-    mov  $highaddr, %rax
-    jmp  *%rax
-
-highaddr:
-    /* switch page table now */
+    /* switch page table */
     movq $PHYS(pml4), %rax
     movq %rax, %cr3
 
+    lgdt PHYS(_gdtr_phys)
+
+    movq $.Lfarjump64, %rax
+    jmp  *%rax
+
+.Lfarjump64:
     /* load the high kernel stack */
     movq  $(_kstack + 4096), %rsp
+    pushq $CODE_64_SELECTOR
+    pushq $.Lhighaddr
+    lretq
+
+.Lhighaddr:
 
     /* reload the gdtr */
     lgdt _gdtr
+
+    /* set up all segments except Stack Selector to NULL selector */
+    xorq %rax, %rax
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %fs
+    movw %ax, %gs
+
+    /* set up Stack Segment */
+    movq $STACK_64_SELECTOR, %rax
+    movw %ax, %ss
+
+    /* unmap low virtual address */
+    movq $0, (pml4)
 
     /* set up gs base */
     leaq per_cpu_states(%rip), %rax
@@ -634,10 +556,3 @@ highaddr:
     hlt                     /* interrupts will unhalt the processor */
     pause
     jmp .Lhalt              /* so jump back to halt to conserve power */
-
-/* stack used for mode switch, need to reside in first page from _start */
-.global __kstack_tmp
-.align 8
-__kstack_tmp_start:
-.fill 32, 1, 0
-__kstack_tmp:

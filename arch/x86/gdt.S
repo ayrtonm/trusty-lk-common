@@ -27,12 +27,17 @@
 
 #define PHYS(x) ((x) - KERNEL_BASE + MEMBASE)
 
-.section .rodata
+.data
 
-.align 8
+.align 4096
+/* Keep it page alignment since we need to map this page */
 DATA(_gdtr_phys)
     .short _gdt_end - _gdt - 1
+#if ARCH_X86_32
     .int PHYS(_gdt)
+#elif ARCH_X86_64
+    .quad PHYS(_gdt)
+#endif
 
 .align 8
 DATA(_gdtr)
@@ -43,9 +48,7 @@ DATA(_gdtr)
     .quad _gdt
 #endif
 
-.data
-/* Keep it page alignment since we need to map this page */
-.align 4096
+.align 8
 DATA(_gdt)
     .int 0
     .int 0
