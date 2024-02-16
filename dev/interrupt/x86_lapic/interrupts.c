@@ -45,12 +45,19 @@ struct int_handler_struct int_handler_table[INT_VECTORS];
 static void remap_pic(void) {
     /* Send ICW1 */
     outp(PIC1, ICW1);
+    outp(PIC2, ICW1);
 
     /* Send ICW2 to remap */
     outp(PIC1 + 1, PIC1_BASE_INTR);
+    outp(PIC2 + 1, PIC2_BASE_INTR);
+
+    /* Send ICW3  */
+    outp(PIC1 + 1, ICW3_PIC1);
+    outp(PIC2 + 1, ICW3_PIC2);
 
     /* Send ICW4 */
     outp(PIC1 + 1, ICW4);
+    outp(PIC2 + 1, ICW4);
 }
 
 /*
@@ -76,31 +83,48 @@ static void mask_all_irqs(void) {
 }
 
 void x86_init_interrupts(void) {
-#if WITH_SWITCHER
-    /* Remap PIC1 IRQ0 to PIC1_BASE_INTR */
+    /* Remap PIC1 IRQ0 to PIC1_BASE_INTR and PIC2 to PIC2_BASE_INTR */
     remap_pic();
-
-    /*
-     * Trusty utilizes IRQ0 as timer resource since Non-secure does not own any
-     * external interrupt. Other IRQs should be masked, Trusty does not care
-     * about other IRQs from PIC in test-runner/Trusty solution.
-     */
-    mask_all_except_irq0();
-#else
-
-    /*
-     * Trusty utilizes VMX preemption timer as secure timer resource. Mask all
-     * IRQs from PIC since PIC is owned by Android kernel in Android/Trusty
-     * solution. Hypervisor needs to provide VMX preemption timer feature for
-     * Trusty guest.
-     */
     mask_all_irqs();
-#endif
+
+    /* PIC2 interrupts are cascaded through PIC1 and must be unmasked there */
+    unmask_interrupt(PIC2_CASCADE_INTR);
+}
+
+static void pic_set_mask(unsigned int vector, bool masked) {
+    uint16_t port;
+    uint line;
+    DEBUG_ASSERT(vector >= PIC1_BASE_INTR);
+    DEBUG_ASSERT(vector < AFTER_PIC_INTR);
+    if (vector < PIC2_BASE_INTR) {
+        port = PIC1 + 1;
+        line = vector - PIC1_BASE_INTR;
+    } else {
+        port = PIC2 + 1;
+        line = vector - PIC2_BASE_INTR;
+    }
+    spin_lock_saved_state_t state;
+    spin_lock_irqsave(&intr_reg_lock, state);
+    uint8_t line_mask = 1U << line;
+    uint8_t current_mask = inp(port);
+    if (masked) {
+        current_mask |= line_mask;
+    } else {
+        current_mask &= ~line_mask;
+    }
+    dprintf(INFO, "new pic mask 0x%x: 0x%x\n", port, current_mask);
+    outp(port, current_mask);
+    spin_unlock_irqrestore(&intr_reg_lock, state);
 }
 
 status_t mask_interrupt(unsigned int vector) {
     if (vector >= INT_VECTORS) {
         return ERR_INVALID_ARGS;
+    }
+    if (vector >= PIC1_BASE_INTR && vector < AFTER_PIC_INTR) {
+        pic_set_mask(vector, true);
+    } else {
+        return ERR_NOT_IMPLEMENTED;
     }
 
     return NO_ERROR;
@@ -111,6 +135,11 @@ void platform_mask_irqs(void) {}
 status_t unmask_interrupt(unsigned int vector) {
     if (vector >= INT_VECTORS) {
         return ERR_INVALID_ARGS;
+    }
+    if (vector >= PIC1_BASE_INTR && vector < AFTER_PIC_INTR) {
+        pic_set_mask(vector, false);
+    } else {
+        return ERR_NOT_IMPLEMENTED;
     }
 
     return NO_ERROR;
@@ -152,9 +181,14 @@ enum handler_return platform_irq(x86_iframe_t* frame) {
 
     spin_unlock_irqrestore(&intr_reg_lock, state);
 
-    /* Please issue EOI at registered ISR. */
     if (NULL != handler) {
         ret = handler(arg);
+        if (vector >= PIC1_BASE_INTR && vector < AFTER_PIC_INTR) {
+            if (vector >= PIC2_BASE_INTR) {
+                outp(PIC2, PIC_EOI);
+            }
+            outp(PIC1, PIC_EOI);
+        }
     } else {
         ret = default_isr(vector);
     }
