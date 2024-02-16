@@ -175,7 +175,7 @@ static inline uint64_t get_pt_entry_from_pt_table(vaddr_t vaddr, uint64_t pde)
 
     pt_index = (((uint64_t)vaddr >> PT_SHIFT) & ((1ul << ADDR_OFFSET) - 1));
     pte = (uint64_t *)(pde & X86_PG_FRAME);
-    return X86_PHYS_TO_VIRT(pte[pt_index]);
+    return pte[pt_index];
 }
 
 static inline uint64_t get_pfn_from_pte(uint64_t pte)
@@ -308,7 +308,7 @@ status_t x86_mmu_get_mapping(map_addr_t pml4, vaddr_t vaddr, uint32_t *ret_level
     }
 
     /* Getting the Page frame & adding the 4KB page offset from the vaddr */
-    *last_valid_entry = get_pfn_from_pte(X86_VIRT_TO_PHYS(pte)) + ((uint64_t)vaddr & PAGE_OFFSET_MASK_4KB);
+    *last_valid_entry = get_pfn_from_pte(pte) + ((uint64_t)vaddr & PAGE_OFFSET_MASK_4KB);
     *mmu_flags = get_arch_mmu_flags(pte & X86_FLAGS_MASK);
 
 last:
