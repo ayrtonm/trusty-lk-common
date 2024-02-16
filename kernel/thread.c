@@ -45,6 +45,8 @@
 #include <platform.h>
 #include <target.h>
 #include <lib/heap.h>
+#include <lib/rand/rand.h>
+#include <inttypes.h>
 #if WITH_KERNEL_VM
 #include <kernel/vm.h>
 #endif
@@ -141,6 +143,12 @@ static void init_thread_struct(thread_t *t, const char *name)
 {
     memset(t, 0, sizeof(thread_t));
     t->magic = THREAD_MAGIC;
+    /*
+     * The bootstrap thread holds expected cookie. If t is the bootstrap
+     * thread, the cookie has already been initialized so the following
+     * assignment is essentially a no-op.
+     */
+    t->cookie = idle_thread(0)->cookie;
     thread_set_pinned_cpu(t, -1);
     strlcpy(t->name, name, sizeof(t->name));
 }
@@ -408,6 +416,26 @@ static void thread_mp_reschedule(thread_t *current_thread, thread_t *t)
     mp_reschedule(thread_get_mp_reschedule_target(current_thread, t), 0);
 }
 
+static void thread_init_cookie(thread_t *t) {
+    int rc = rand_get_bytes((uint8_t *)&t->cookie, sizeof(t->cookie));
+    ASSERT(!rc && "Failed to initialize thread cookie.");
+}
+
+/* The cookie of a valid thread must match that of the bootstrap thread */
+static void thread_check_cookie(const thread_t *t) {
+    /* bootstrap thread contains the reference cookie */
+    const uint64_t expected_cookie = idle_thread(0)->cookie;
+
+    if (unlikely(t->cookie != expected_cookie)) {
+        panic("Corrupt or invalid thread cookie detected for thread: %s.\n"
+              "Expected cookie: %" PRIu64 ", actual cookie: %" PRIu64 "\n",
+              t->name,
+              expected_cookie,
+              t->cookie
+        );
+    }
+}
+
 /**
  * @brief  Make a suspended thread executable.
  *
@@ -422,6 +450,8 @@ status_t thread_resume(thread_t *t)
 {
     DEBUG_ASSERT(t->magic == THREAD_MAGIC);
     DEBUG_ASSERT(t->state != THREAD_DEATH);
+
+    thread_check_cookie(t);
 
     bool resched = false;
     bool ints_disabled = arch_ints_disabled();
@@ -769,6 +799,15 @@ static void thread_resched(void) {
     newthread = get_top_thread(cpu, true);
 
     /*
+     * These threads are already on the runqueues so these checks should pass
+     * unless an existing thread struct was corrupted. If that is the case, the
+     * thread cookies do not help much as an adversary could corrupt the
+     * register file for that thread instead.
+     */
+    thread_check_cookie(current_thread);
+    thread_check_cookie(newthread);
+
+    /*
      * The current_thread is switched out from a given cpu,
      * however its pinned cpu may have changed and if so,
      * this current_thread should be scheduled on that new cpu.
@@ -1015,6 +1054,8 @@ void thread_unblock(thread_t *t, bool resched)
     DEBUG_ASSERT(thread_lock_held());
     DEBUG_ASSERT(!thread_is_idle(t));
 
+    thread_check_cookie(t);
+
     t->state = THREAD_READY;
     insert_in_run_queue_head(t);
     thread_mp_reschedule(get_current_thread(), t);
@@ -1053,6 +1094,8 @@ static enum handler_return thread_sleep_handler(timer_t *timer,
 
     DEBUG_ASSERT(t->magic == THREAD_MAGIC);
     DEBUG_ASSERT(t->state == THREAD_SLEEPING);
+
+    thread_check_cookie(t);
 
     THREAD_LOCK(state);
 
@@ -1163,6 +1206,7 @@ void thread_init_early(void)
     cpu_priority[0] = t->priority;
     platform_cpu_priority_set(0, t->priority);
     set_current_thread(t);
+    thread_init_cookie(t);
 }
 
 static void thread_reaper_init(void)
@@ -1698,7 +1742,9 @@ int wait_queue_wake_one(wait_queue_t *wait, bool reschedule, status_t wait_queue
     t = list_remove_head_type(&wait->list, thread_t, queue_node);
     if (t) {
         wait->count--;
+        DEBUG_ASSERT(t->magic == THREAD_MAGIC);
         DEBUG_ASSERT(t->state == THREAD_BLOCKED);
+        thread_check_cookie(t);
         t->state = THREAD_READY;
         t->wait_queue_block_ret = wait_queue_error;
         t->blocking_wait_queue = NULL;
@@ -1762,7 +1808,9 @@ int wait_queue_wake_all(wait_queue_t *wait, bool reschedule, status_t wait_queue
     /* pop all the threads off the wait queue into the run queue */
     while ((t = list_remove_head_type(&wait->list, thread_t, queue_node))) {
         wait->count--;
+        DEBUG_ASSERT(t->magic == THREAD_MAGIC);
         DEBUG_ASSERT(t->state == THREAD_BLOCKED);
+        thread_check_cookie(t);
         t->state = THREAD_READY;
         t->wait_queue_block_ret = wait_queue_error;
         t->blocking_wait_queue = NULL;
@@ -1829,6 +1877,8 @@ status_t thread_unblock_from_wait_queue(thread_t *t, status_t wait_queue_error)
     DEBUG_ASSERT(t->magic == THREAD_MAGIC);
     DEBUG_ASSERT(arch_ints_disabled());
     DEBUG_ASSERT(thread_lock_held());
+
+    thread_check_cookie(t);
 
     if (t->state != THREAD_BLOCKED)
         return ERR_NOT_BLOCKED;

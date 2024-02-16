@@ -98,7 +98,10 @@ typedef struct thread {
     size_t shadow_stack_size;
 #endif
 
+    /* helps detect benign corruption */
     int magic;
+    /* helps detect malicious corruption */
+    uint64_t cookie;
     struct list_node thread_list_node;
 
     /* active bits */
