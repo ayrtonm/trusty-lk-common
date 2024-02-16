@@ -234,7 +234,7 @@ LK_INIT_HOOK_FLAGS(arm_gic_suspend_cpu, arm_gic_suspend_cpu,
 static void arm_gic_resume_cpu(uint level)
 {
     spin_lock_saved_state_t state;
-    bool resume_gicd = false;
+    __UNUSED bool resume_gicd = false;
 
     spin_lock_save(&gicd_lock, &state, GICD_LOCK_FLAGS);
 
