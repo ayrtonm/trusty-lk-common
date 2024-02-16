@@ -49,6 +49,7 @@ MODULE_SRCS += \
 	$(SUBARCH_DIR)/exceptions.S \
 	$(SUBARCH_DIR)/mmu.c \
 	$(SUBARCH_DIR)/ops.S \
+	$(SUBARCH_DIR)/usercopy.c \
 \
 	$(LOCAL_DIR)/arch.c \
 	$(LOCAL_DIR)/cache.c \
