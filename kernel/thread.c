@@ -139,6 +139,20 @@ static void insert_in_run_queue_tail(thread_t *t)
     run_queue_bitmap |= (1U<<t->priority);
 }
 
+/**
+ * thread_get_expected_cookie() - get expected cookie for a given thread
+ * @t: address of thread associated with the expected cookie
+ *
+ * Threads are expected to have the same cookie value modulo the effects of
+ * xor'ing the cookie with the address of the enclosing thread struct.
+ *
+ * Returns: expected cookie for thread t
+ */
+static inline uint64_t thread_get_expected_cookie(const thread_t *t) {
+    /* undo xor with bootstrap thread address then xor with address of t */
+    return idle_thread(0)->cookie ^ (uint64_t)idle_thread(0) ^ (uint64_t)t;
+}
+
 static void init_thread_struct(thread_t *t, const char *name)
 {
     memset(t, 0, sizeof(thread_t));
@@ -148,7 +162,7 @@ static void init_thread_struct(thread_t *t, const char *name)
      * thread, the cookie has already been initialized so the following
      * assignment is essentially a no-op.
      */
-    t->cookie = idle_thread(0)->cookie;
+    t->cookie = thread_get_expected_cookie(t);
     thread_set_pinned_cpu(t, -1);
     strlcpy(t->name, name, sizeof(t->name));
 }
@@ -418,13 +432,13 @@ static void thread_mp_reschedule(thread_t *current_thread, thread_t *t)
 
 static void thread_init_cookie(thread_t *t) {
     int rc = rand_get_bytes((uint8_t *)&t->cookie, sizeof(t->cookie));
+    /* tie the expected cookie to the address of the enclosing thread */
+    t->cookie ^= (uint64_t)t;
     ASSERT(!rc && "Failed to initialize thread cookie.");
 }
 
-/* The cookie of a valid thread must match that of the bootstrap thread */
 static void thread_check_cookie(const thread_t *t) {
-    /* bootstrap thread contains the reference cookie */
-    const uint64_t expected_cookie = idle_thread(0)->cookie;
+    const uint64_t expected_cookie = thread_get_expected_cookie(t);
 
     if (unlikely(t->cookie != expected_cookie)) {
         panic("Corrupt or invalid thread cookie detected for thread: %s.\n"
