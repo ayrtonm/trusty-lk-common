@@ -20,6 +20,9 @@ ALLHOSTMODULES += $(HOST_MODULES)
 ALLHOSTMODULES := $(sort $(ALLHOSTMODULES))
 HOST_MODULES :=
 
+# Needed for a true default
+MODULE_ADD_IMPLICIT_DEPS := true
+
 $(info including $(INCMODULES))
 include $(addsuffix /rules.mk,$(INCMODULES))
 

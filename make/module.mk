@@ -415,5 +415,6 @@ MODULE_RUSTDOC_OBJECT :=
 MODULE_RUSTDOCFLAGS :=
 MODULE_KERNEL_RUST_DEPS :=
 MODULE_SKIP_DOCS :=
+MODULE_ADD_IMPLICIT_DEPS := true
 
 endif # QUERY_MODULE (this line should stay after all other processing)
