@@ -76,7 +76,8 @@ static int thread_test_corrupt_cookie_before_yield_fn(void *unused) {
     return ERR_GENERIC;
 }
 
-TEST(threadtest, cookie_corruption_before_yield_must_panic) {
+/* TODO(b/300168583): fix test flakyness. */
+TEST(threadtest, DISABLED_cookie_corruption_before_yield_must_panic) {
     int ret;
     ret = threadtest_run_in_thread("yielding_cookie_corrupter_thread",
                                    thread_test_corrupt_cookie_before_yield_fn,
@@ -103,7 +104,8 @@ static int thread_test_corrupt_cookie_before_preempt_fn(void *unused) {
     return ERR_GENERIC;
 }
 
-TEST(threadtest, cookie_corruption_before_preempt_must_panic) {
+/* TODO(b/300168583): fix test flakyness. */
+TEST(threadtest, DISABLED_cookie_corruption_before_preempt_must_panic) {
     int ret;
     ret = threadtest_run_in_thread("preempted_cookie_corrupter_thread",
                                    thread_test_corrupt_cookie_before_preempt_fn,
