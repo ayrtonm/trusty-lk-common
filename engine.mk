@@ -66,6 +66,7 @@ OUTELF := $(BUILDDIR)/lk.elf
 CONFIGHEADER := $(BUILDDIR)/config.h
 TOOLCHAIN_CONFIG := $(BUILDDIR)/toolchain.config
 TRUSTY_HOST_LIBRARY_BUILDDIR := $(BUILDDIR)/host_lib
+TRUSTY_KERNEL_LIBRARY_BUILDDIR := $(BUILDDIR)/kernellib
 
 # Eliminate /usr/local/include and /usr/include to build kernel hermetically
 GLOBAL_KERNEL_COMPILEFLAGS += --sysroot=fake_sysroot
@@ -90,7 +91,7 @@ GLOBAL_SHARED_ASMFLAGS := -DASSEMBLY
 GLOBAL_LDFLAGS :=
 GLOBAL_SHARED_LDFLAGS :=
 GLOBAL_KERNEL_LDFLAGS :=
-GLOBAL_KERNEL_RUSTFLAGS :=
+GLOBAL_KERNEL_RUSTFLAGS := -L dependency=$(TRUSTY_HOST_LIBRARY_BUILDDIR) -L dependency=$(TRUSTY_KERNEL_LIBRARY_BUILDDIR)
 
 # This function is referenced by the linker-generated exidx tables, but seems to
 # be being dropped before it is needed. Force it to be included in the link.

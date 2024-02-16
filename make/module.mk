@@ -287,7 +287,7 @@ ALL_KERNEL_HOST_CRATE_STEMS := $(ALL_KERNEL_HOST_CRATE_STEMS) $(HOST_DEP_CRATE_S
 
 # change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
 OLD_BUILDDIR := $(BUILDDIR)
-BUILDDIR := $(BUILDDIR)/kernellib
+BUILDDIR := $(TRUSTY_KERNEL_LIBRARY_BUILDDIR)
 
 # compute paths of dependencies
 MODULE_KERNEL_RUST_LIBS := $(foreach dep, $(DEP_CRATE_STEMS), $(call TOBUILDDIR,lib$(dep).rlib))
