@@ -1,5 +1,8 @@
 # build a top-level wrapper crate as a staticlib to link into lk.elf
 
+# collect paths for proc-macro deps with BUILDDIR for host libs
+WRAPPER_RUST_EXTERN_PATHS := $(foreach crate, $(ALL_KERNEL_HOST_CRATE_NAMES), $(crate)=$(TRUSTY_HOST_LIBRARY_BUILDDIR)/lib$(crate).so)
+
 # change BUILDDIR so RSOBJS for kernel are distinct targets from userspace ones
 OLD_BUILDDIR := $(BUILDDIR)
 BUILDDIR := $(BUILDDIR)/kernellib
@@ -30,12 +33,12 @@ include $(SORTED_CRATE_NAMES_FILE)
 
 
 # build "--extern foo=/path/to/foo" flags for rustc
-WRAPPER_RUST_EXTERN_PATHS := $(foreach crate, $(ALLMODULE_CRATE_NAMES_SORTED), $(crate)=$(call TOBUILDDIR,lib$(crate).rlib))
+WRAPPER_RUST_EXTERN_PATHS += $(foreach crate, $(ALLMODULE_CRATE_NAMES_SORTED), $(crate)=$(call TOBUILDDIR,lib$(crate).rlib))
 WRAPPER_RUSTFLAGS += $(addprefix --extern ,$(WRAPPER_RUST_EXTERN_PATHS))
 
 # generate a .rs source file for the wrapper crate
 # we must not explicitly "extern crate" core or compiler_builtins
-CRATES_TO_IMPORT := $(filter-out core compiler_builtins,$(ALLMODULE_CRATE_NAMES_SORTED))
+CRATES_TO_IMPORT := $(filter-out core compiler_builtins,$(ALL_KERNEL_HOST_CRATE_NAMES) $(ALLMODULE_CRATE_NAMES_SORTED))
 RUST_WRAPPER_SRC := \#![feature(panic_abort)] \#![no_std] \
     $(foreach crate, $(CRATES_TO_IMPORT), extern crate $(crate);) \
     \#[panic_handler] fn handle_panic(_: &core::panic::PanicInfo) -> ! {loop {}}
