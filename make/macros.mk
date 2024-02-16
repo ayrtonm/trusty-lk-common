@@ -16,7 +16,7 @@ FIND_EXTERNAL = $(if $(wildcard external/trusty/$1),external/trusty/$1,external/
 
 # try to find a Rust crate at external/rust/crates/$CRATE and fall back to
 # trusty/user/base/host/$CRATE and then trusty/user/base/lib/$CRATE-rust
-FIND_CRATE = $(if $(wildcard external/rust/crates/$1/rules.mk),external/rust/crates/$1,$(if $(wildcard trusty/user/base/host/$1/rules.mk),trusty/user/base/host/$1,trusty/user/base/lib/$1-rust))
+FIND_CRATE = $(if $(wildcard external/rust/crates/$1/rules.mk),external/rust/crates/$1,$(if $(wildcard trusty/user/base/host/$1/rules.mk),trusty/user/base/host/$1,$(if $(wildcard trusty/user/base/host/$1-rust/rules.mk),trusty/user/base/host/$1-rust,trusty/user/base/lib/$1-rust)))
 
 COMMA := ,
 EMPTY :=
