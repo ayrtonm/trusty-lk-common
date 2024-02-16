@@ -126,7 +126,7 @@ static void gicv3_gicd_setup_irq_group(uint32_t vector, uint32_t grp) {
     uint32_t val;
     uint32_t mask;
 
-    ASSERT((vector > 32) && (vector < MAX_INT));
+    ASSERT((vector >= 32) && (vector < MAX_INT));
 
     mask = (0x1u << (vector % 32));
 
