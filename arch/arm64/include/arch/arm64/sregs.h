@@ -64,6 +64,10 @@
 #define SCTLR_EL1_ENDA (1llu << 27u)
 #define SCTLR_EL1_ENDB (1llu << 13u)
 
+/* PAN */
+#define SCTLR_EL1_SPAN_SHIFT 23u    /* SPAN is from FEAT_PAN1 */
+#define SCTLR_EL1_EPAN_SHIFT 57u    /* EPAN is from FEAT_PAN3 */
+
 /*
  * ID_AA64ISAR1_EL1 bits - Instruction Set Attribute Register 1
  */
@@ -89,6 +93,17 @@
 #define ID_AA64ISAR2_EL1_GPA3_MASK 0xf4
 
 /*
+ * ID_AA64MMFR1_EL1 - AArch64 Memory Model Feature Register 1
+ */
+
+#define ID_AA64MMFR1_EL1_PAN_SHIFT 20u
+#define ID_AA64MMFR1_EL1_PAN_MASK 0xfu
+#define ID_AA64MMFR1_EL1_PAN_NOT_SUPPORTED 0x0u
+#define ID_AA64MMFR1_EL1_PAN_SUPPORTED 0x1u
+#define ID_AA64MMFR1_EL1_PAN2_SUPPORTED 0x2u
+#define ID_AA64MMFR1_EL1_PAN3_SUPPORTED 0x3u
+
+/*
  * ID_AA64PFR0 - AArch64 Processor Feature Register 0
  */
 
@@ -104,3 +119,12 @@
 #define ID_AA64PFR1_EL1_BIT_MASK 0xfu
 #define ID_AA64PFR1_EL1_BTI_NOT_SUPPORTED 0x0u
 #define ID_AA64PFR1_EL1_BTI_SUPPORTED 0x1u
+
+/*
+ * PAN - Privileged Access Never
+ */
+
+#define PAN s3_0_c4_c2_3
+
+#define PAN_PAN_SHIFT 22u
+#define PAN_PAN_MASK 0x1ull
