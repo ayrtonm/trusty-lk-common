@@ -55,3 +55,10 @@
 #define ARM64_PHYSICAL_STACK_CANARY_ROTATE  (8)
 
 #define MTE_GRANULE_SIZE (16)
+
+/* Macro to remove Pointer Authentication Code ROP protection from a function */
+#if defined(KERNEL_PAC_ENABLED) && defined(KERNEL_BTI_ENABLED)
+#define __ARCH_NO_PAC __attribute__((target("branch-protection=bti")))
+#else
+#define __ARCH_NO_PAC __attribute__((target("branch-protection=none")))
+#endif

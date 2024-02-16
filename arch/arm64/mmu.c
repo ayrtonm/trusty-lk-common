@@ -789,13 +789,26 @@ void arch_mmu_context_switch(arch_aspace_t *aspace)
         ttbr = (arch_mmu_asid(aspace) << 48) | aspace->tt_phys;
         ARM64_WRITE_SYSREG(ttbr0_el1, ttbr);
 
-        if (TRACE_CONTEXT_SWITCH)
-            TRACEF("ttbr 0x%" PRIx64 ", tcr 0x%" PRIx64 "\n", ttbr, tcr);
     } else {
         tcr = MMU_TCR_FLAGS_KERNEL;
+    }
 
-        if (TRACE_CONTEXT_SWITCH)
+#if KERNEL_PAC_ENABLED
+        /* If TBI0 is set, also set TBID0.
+         *  TBID0 is RES0 if FEAT_PAuth is not supported, so this must be
+         *  conditional.
+         */
+        if ((tcr & MMU_TCR_TBI0) != 0 && arch_pac_address_supported()) {
+            tcr |= MMU_TCR_TBID0;
+        }
+#endif
+
+    if (TRACE_CONTEXT_SWITCH) {
+        if (aspace) {
+            TRACEF("ttbr 0x%" PRIx64 ", tcr 0x%" PRIx64 "\n", ttbr, tcr);
+        } else {
             TRACEF("tcr 0x%" PRIx64 "\n", tcr);
+        }
     }
 
     ARM64_WRITE_SYSREG(tcr_el1, tcr); /* TODO: only needed when switching between kernel and user threads */

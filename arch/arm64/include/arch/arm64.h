@@ -41,9 +41,14 @@ __BEGIN_CDECLS
     _val; \
 })
 
-#define ARM64_WRITE_SYSREG(reg, val) \
+#define ARM64_WRITE_SYSREG_RAW(reg, val) \
 ({ \
     __asm__ volatile("msr " TOSTRING(reg) ", %0" :: "r" (val)); \
+})
+
+#define ARM64_WRITE_SYSREG(reg, val) \
+({ \
+    ARM64_WRITE_SYSREG_RAW(reg, val); \
     ISB; \
 })
 
@@ -94,6 +99,13 @@ static inline void arm64_fpu_pre_context_switch(struct thread *thread)
 
 /* overridable syscall handler */
 void arm64_syscall(struct arm64_iframe_long *iframe, bool is_64bit);
+
+/* Macro to remove PAC protection from a function */
+#if defined(KERNEL_PAC_ENABLED) && defined(KERNEL_BTI_ENABLED)
+#define __ARM64_NO_PAC __attribute__((target("branch-protection=bti")))
+#else
+#define __ARM64_NO_PAC __attribute__((target("branch-protection=none")))
+#endif
 
 __END_CDECLS
 

@@ -149,6 +149,8 @@
 #define MMU_RGN_WRITE_THROUGH_NO_ALLOCATE       (2)
 #define MMU_RGN_WRITE_BACK_NO_ALLOCATE          (3)
 
+#define MMU_TCR_TBID1                           BM(52, 1, 1)
+#define MMU_TCR_TBID0                           BM(51, 1, 1)
 #define MMU_TCR_TBI1                            BM(38, 1, 1)
 #define MMU_TCR_TBI0                            BM(37, 1, 1)
 #define MMU_TCR_AS                              BM(36, 1, 1)

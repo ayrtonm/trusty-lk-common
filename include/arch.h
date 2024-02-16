@@ -42,4 +42,9 @@ __END_CDECLS
 /* arch specific bits */
 #include <arch/defines.h>
 
+/* Empty function decorator if not defined */
+#ifndef __ARCH_NO_PAC
+#define __ARCH_NO_PAC
+#endif
+
 #endif
