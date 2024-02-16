@@ -908,6 +908,9 @@ static inline void x86_disallow_explicit_smap(void) {
                 :"memory");
     }
 }
+
+void x86_syscall(void);
+
 #endif // ARCH_X86_64
 
 __END_CDECLS
