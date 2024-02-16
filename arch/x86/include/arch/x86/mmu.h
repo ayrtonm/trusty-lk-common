@@ -59,7 +59,7 @@
 /* ISDM:4.1.4 MAXPHYADDR is at most 52 */
 #define X86_PG_PHY_ADDR_MASK    (0x000ffffffffff000ul)
 /* NX Bit is ignored in the PAE mode */
-#define X86_FLAGS_MASK          (0x0000000000000ffful)
+#define X86_FLAGS_MASK          (0x8000000000000ffful)
 #define X86_PTE_NOT_PRESENT     (0xFFFFFFFFFFFFFFFEul)
 #define X86_2MB_PAGE_FRAME      (0x000fffffffe00000ul)
 #define PAGE_OFFSET_MASK_4KB    (0x0000000000000ffful)
