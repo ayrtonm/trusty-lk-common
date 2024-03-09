@@ -46,7 +46,7 @@ RUST_WRAPPER_SRC := \#![feature(panic_abort)] \#![no_std] \
 RUST_WRAPPER := $(BUILDDIR)/lk-crates.rs
 
 $(RUST_WRAPPER): RUST_WRAPPER_SRC := $(RUST_WRAPPER_SRC)
-$(RUST_WRAPPER): $(SORTED_CRATE_NAMES_FILE)
+$(RUST_WRAPPER): $(SORTED_CRATE_STEMS_FILE)
 	@$(MKDIR)
 	echo "$(RUST_WRAPPER_SRC)" > "$@"
 
