@@ -163,9 +163,11 @@ static inline struct bst_node *bst_search_key(const struct bst_root *root,
  *
  * Return: Item in @root matching @item, or %NULL if no matching node is found.
  */
-#define bst_search_type(root, item, compare, type, member) \
-    containerof_null_safe(bst_search(root, &(item)->member, compare), type, \
-                          member)
+#define bst_search_type(root, item, compare, type, member) ({ \
+    type *__item = (item); \
+    containerof_null_safe(bst_search(root, &__item->member, compare), type, \
+                          member); \
+})
 
 /**
  * bst_search_key_type - Find an item in a binary search tree.
