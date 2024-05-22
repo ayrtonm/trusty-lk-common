@@ -33,20 +33,6 @@
 #include <arch/arm64.h>
 #endif
 
-#ifdef ARCH_ARM
-/*
- * AArch32 does not have 64 bit mmio support, but the gic spec allows 32 bit
- * upper and lower access to _most_ 64 bit gic registers (not GICR_VSGIPENDR,
- * GICR_VSGIR or GITS_SGIR).
- */
-/* TODO: add mmio_read32 when needed */
-static inline void mmio_write64(volatile uint64_t *ptr64, uint64_t val) {
-    volatile uint32_t *ptr = (volatile uint32_t *)ptr64;
-    mmio_write32(ptr, (uint32_t)val);
-    mmio_write32(ptr + 1, val >> 32);
-}
-#endif
-
 struct arm_gic {
     vaddr_t gicc_vaddr;
     size_t gicc_size;
@@ -149,13 +135,13 @@ GEN_CP15_REG64_FUNCS(icc_sgi0r_el1, 2, c12);
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICC_OFFSET); \
         ASSERT(reg < GICC_LIMIT); \
-        mmio_read32((volatile uint32_t *)(arm_gics[(gic)].gicc_vaddr + ((reg) - GICC_OFFSET))); \
+        (*REG32(arm_gics[(gic)].gicc_vaddr + ((reg) - GICC_OFFSET))); \
     })
 #define GICCREG_WRITE(gic, reg, val) ({ \
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICC_OFFSET); \
         ASSERT(reg < GICC_LIMIT); \
-        mmio_write32((volatile uint32_t *)(arm_gics[(gic)].gicc_vaddr + ((reg) - GICC_OFFSET)), (val)); \
+        (*REG32(arm_gics[(gic)].gicc_vaddr + ((reg) - GICC_OFFSET)) = (val)); \
     })
 /* main cpu regs */
 #define GICC_CTLR               (GICC_OFFSET + 0x0000)
@@ -198,13 +184,13 @@ GEN_CP15_REG64_FUNCS(icc_sgi0r_el1, 2, c12);
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICD_OFFSET); \
         ASSERT(reg < GICD_LIMIT); \
-        mmio_read32((volatile uint32_t *)(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET))); \
+        (*REG32(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET))); \
     })
 #define GICDREG_WRITE(gic, reg, val) ({ \
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICD_OFFSET); \
         ASSERT(reg < GICD_LIMIT); \
-        mmio_write32((volatile uint32_t *)(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET)), (val)); \
+        (*REG32(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET)) = (val)); \
     })
 /* distribution regs */
 #define GICD_CTLR               (GICD_OFFSET + 0x000)
@@ -236,13 +222,13 @@ GEN_CP15_REG64_FUNCS(icc_sgi0r_el1, 2, c12);
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICD_OFFSET); \
         ASSERT(reg < GICD_LIMIT); \
-        mmio_read64((volatile uint64_t *)(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET))); \
+        (*REG64(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET))); \
     })
 #define GICDREG_WRITE64(gic, reg, val) ({ \
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(reg >= GICD_OFFSET); \
         ASSERT(reg < GICD_LIMIT); \
-        mmio_write64((volatile uint64_t *)(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET)), (val)); \
+        (*REG64(arm_gics[(gic)].gicd_vaddr + ((reg) - GICD_OFFSET)) = (val)); \
     })
 
 /* GICv3/v4 Distributor interface */
@@ -273,14 +259,14 @@ GEN_CP15_REG64_FUNCS(icc_sgi0r_el1, 2, c12);
         ASSERT(cpu < SMP_MAX_CPUS); \
         ASSERT(reg >= GICR_OFFSET); \
         ASSERT(reg < GICR_LIMIT); \
-        mmio_read32((volatile uint32_t *)(arm_gics[(gic)].gicr_vaddr + GICR_CPU_OFFSET(cpu) + ((reg) - GICR_OFFSET))); \
+        (*REG32(arm_gics[(gic)].gicr_vaddr + GICR_CPU_OFFSET(cpu) + ((reg) - GICR_OFFSET))); \
     })
 #define GICRREG_WRITE(gic, cpu, reg, val) ({ \
         ASSERT(gic < NUM_ARM_GICS); \
         ASSERT(cpu < SMP_MAX_CPUS); \
         ASSERT(reg >= GICR_OFFSET); \
         ASSERT(reg < GICR_LIMIT); \
-        mmio_write32((volatile uint32_t *)(arm_gics[(gic)].gicr_vaddr + GICR_CPU_OFFSET(cpu) + ((reg) - GICR_OFFSET)), (val)); \
+        (*REG32(arm_gics[(gic)].gicr_vaddr + GICR_CPU_OFFSET(cpu) + ((reg) - GICR_OFFSET)) = (val)); \
     })
 
 #define GICR_CTRL               (GICR_OFFSET + 0x0000)
