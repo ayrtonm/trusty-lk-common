@@ -68,6 +68,7 @@ MODULE_BINDGEN_ALLOW_FUNCTIONS := \
 	mutex_release \
 	thread_create \
 	thread_resume \
+	thread_sleep_ns \
 	vaddr_to_paddr \
 	vmm_alloc_physical_etc \
 	vmm_alloc_contiguous \
@@ -80,6 +81,7 @@ MODULE_BINDGEN_ALLOW_TYPES := \
 	iovec_kern \
 	ipc_msg_.* \
 	lk_init_.* \
+	lk_time_.* \
 	trusty_ipc_event_type \
 
 MODULE_BINDGEN_ALLOW_VARS := \
