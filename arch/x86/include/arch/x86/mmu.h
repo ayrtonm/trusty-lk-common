@@ -45,6 +45,9 @@
 /* default flags for 2MB/4MB/1GB page directory entries */
 #define X86_KERNEL_PD_LP_FLAGS (X86_MMU_PG_G | X86_MMU_PG_PS | X86_MMU_PG_RW | X86_MMU_PG_P)
 
+/* default flags for 4K page table entries */
+#define X86_KERNEL_PT_FLAGS (X86_MMU_PG_G | X86_MMU_PG_RW | X86_MMU_PG_P)
+
 #if !defined(PAGE_SIZE)
 #define PAGE_SIZE       4096
 #elif PAGE_SIZE != 4096
