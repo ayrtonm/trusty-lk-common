@@ -77,6 +77,10 @@ define CRATE_CONFIG =
 	"deps": [
 		$(call STRIP_TRAILING_COMMA,$(foreach dep,$(sort $(MODULE_$(crate)_CRATE_DEPS)),\
 				{"name": "$(dep)"$(COMMA) "crate": $(RUST_TOPLEVEL_$(dep)_CRATE_INDEX)}$(COMMA)))
+	],
+	"cfg": [
+		$(call STRIP_TRAILING_COMMA,$(foreach f, $(MODULE_$(crate)_CRATE_CFG),\
+				"$(subst ",\\\\\\\",$(f))"$(COMMA)))
 	]
 },
 
