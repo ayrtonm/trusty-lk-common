@@ -70,6 +70,27 @@ static void init_per_cpu_state(uint cpu)
     }
 }
 
+void x86_check_and_fix_gs(void)
+{
+    uint cpu = arch_curr_cpu_num();
+    x86_per_cpu_states_t *expected_gs_base = &per_cpu_states[cpu];
+    x86_per_cpu_states_t *current_gs_base = (void *)read_msr(X86_MSR_GS_BASE);
+
+    if (current_gs_base != expected_gs_base) {
+        printf("GS base is wrong %p != %p, try swapgs\n", current_gs_base, expected_gs_base);
+        __asm__ __volatile__ (
+            "swapgs"
+        );
+        current_gs_base = (void *)read_msr(X86_MSR_GS_BASE);
+        if (current_gs_base != expected_gs_base) {
+            printf("GS base is still wrong after swapgs %p != %p\n",
+                   current_gs_base, expected_gs_base);
+            write_msr(X86_MSR_GS_BASE, (uint64_t)expected_gs_base);
+            current_gs_base = (void *)read_msr(X86_MSR_GS_BASE);
+        }
+    }
+}
+
 static void set_tss_segment_percpu(void)
 {
     uint64_t addr;
@@ -258,6 +279,10 @@ void arch_enter_uspace(vaddr_t ep,
      *
      * More details please refer "IRET/IRETD -- Interrupt Return" in Intel
      * ISDM VOL2 <Instruction Set Reference>.
+     *
+     * Disable interrupts before swapgs so avoid getting entering the
+     * interrupt vector with a user-space gs descriptor and a kernel cs
+     * selector (which exceptions.S:interrupt_common checks).
      */
     __asm__ __volatile__ (
             "pushq %0   \n"
@@ -266,6 +291,7 @@ void arch_enter_uspace(vaddr_t ep,
             "pushq %3   \n"
             "pushq %4   \n"
             "pushq %5   \n"
+            "cli \n"
             "swapgs \n"
             "xorq %%r15, %%r15 \n"
             "xorq %%r14, %%r14 \n"
