@@ -566,7 +566,7 @@ void arm64_sync_exception(struct arm64_iframe_long *iframe, bool from_lower)
     if (from_lower) {
         arch_enable_fiqs();
         arch_enable_ints();
-        /* TODO(snehalreddy): Remove ASLR
+        /* TODO(snehalreddy): Remove ASLR */
         trusty_app_crash(esr, far, display_pc);
     }
     panic("die\n");
