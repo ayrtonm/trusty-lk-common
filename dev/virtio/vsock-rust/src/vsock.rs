@@ -135,7 +135,7 @@ impl VsockConnection {
 }
 
 fn vsock_connection_lookup(
-    connections: &mut Vec<VsockConnection>,
+    connections: &mut [VsockConnection],
     remote_port: u32,
 ) -> Option<(usize, &mut VsockConnection)> {
     connections
@@ -172,10 +172,10 @@ where
 
         // do we already have a connection?
         let mut guard = self.connections.lock();
-        if let Some(_) = guard
+        if guard
             .deref()
             .iter()
-            .find(|connection| connection.peer == peer && connection.local_port == local.port)
+            .any(|connection| connection.peer == peer && connection.local_port == local.port)
         {
             panic!("connection already exists");
         };
@@ -200,7 +200,7 @@ where
             .unwrap();
         assert!(data_len == length);
         // allow manual connect from nc in line mode
-        if buffer[data_len - 1] == '\n' as _ {
+        if buffer[data_len - 1] == b'\n' as _ {
             data_len -= 1;
         }
         let port_name = &buffer[0..data_len];
@@ -342,7 +342,7 @@ where
             c.print_stats();
             return true; // remove connection
         }
-        return false; // keep connection
+        false // keep connection
     }
 
     fn print_stats(&self) {
@@ -411,7 +411,7 @@ where
                                 state: VsockConnectionState::Active,
                                 ..
                             } => device.vsock_rx_channel(
-                                *c,
+                                c,
                                 length,
                                 source,
                                 destination,
@@ -489,7 +489,7 @@ where
             // get the event we care about.
             info!("handle_set_wait failed: {}", ret.unwrap_err());
             ret = device.handle_set.handle_wait(&mut href.emask(), timeout);
-            if ret != Err(LkError::ERR_TIMED_OUT.into()) {
+            if ret != Err(LkError::ERR_TIMED_OUT) {
                 info!("handle_wait on handle set returned: {ret:?}");
                 continue;
             }
