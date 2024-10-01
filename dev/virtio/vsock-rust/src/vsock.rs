@@ -31,7 +31,6 @@ use core::time::Duration;
 
 use alloc::boxed::Box;
 use alloc::ffi::CString;
-use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -58,11 +57,13 @@ use rust_support::ipc::IPC_PORT_PATH_MAX;
 use rust_support::sync::Mutex;
 use rust_support::thread;
 use rust_support::thread::sleep;
+use virtio_drivers::device::socket::SocketError;
 use virtio_drivers::device::socket::VsockAddr;
 use virtio_drivers::device::socket::VsockConnectionManager;
 use virtio_drivers::device::socket::VsockEvent;
 use virtio_drivers::device::socket::VsockEventType;
 use virtio_drivers::transport::Transport;
+use virtio_drivers::Error as VirtioError;
 use virtio_drivers::Hal;
 use virtio_drivers::PAGE_SIZE;
 
@@ -549,12 +550,33 @@ where
                         c.tx_count += 1;
                         c.tx_since_rx += 1;
                         c.rx_since_tx = 0;
-                        device
-                            .connection_manager
-                            .lock()
-                            .send(c.peer, c.local_port, &tx_buffer[..msg_info.len])
-                            .expect(&format!("failed to send message from {}", c.tipc_port_name()));
-                        debug!("sent {} bytes from {}", msg_info.len, c.tipc_port_name());
+                        match device.connection_manager.lock().send(
+                            c.peer,
+                            c.local_port,
+                            &tx_buffer[..msg_info.len],
+                        ) {
+                            Err(err) => {
+                                if err == VirtioError::SocketDeviceError(SocketError::NotConnected)
+                                {
+                                    debug!(
+                                        "failed to send {} bytes from {}. Connection closed",
+                                        msg_info.len,
+                                        c.tipc_port_name()
+                                    );
+                                } else {
+                                    // TODO: close connection instead
+                                    panic!(
+                                        "failed to send {} bytes from {}: {:?}",
+                                        msg_info.len,
+                                        c.tipc_port_name(),
+                                        err
+                                    );
+                                }
+                            }
+                            Ok(_) => {
+                                debug!("sent {} bytes from {}", msg_info.len, c.tipc_port_name());
+                            }
+                        }
                     } else {
                         error!("ipc_read_msg failed: {ret}");
                     }
