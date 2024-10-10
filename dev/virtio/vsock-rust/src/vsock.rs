@@ -283,7 +283,7 @@ where
             )
         }
 
-        info!("wait for connection to {}, remote {}", c.tipc_port_name(), c.peer.port);
+        debug!("wait for connection to {}, remote {}", c.tipc_port_name(), c.peer.port);
 
         c.state = VsockConnectionState::TipcConnecting;
 
@@ -538,7 +538,6 @@ where
             // but we can wait for it to become non-empty using handle_wait.
             // Once that that returns we have to call handle_set_wait again to
             // get the event we care about.
-            info!("handle_set_wait failed: {}", ret.unwrap_err());
             ret = device.handle_set.handle_wait(&mut href.emask(), timeout);
             if ret != Err(LkError::ERR_TIMED_OUT) {
                 info!("handle_wait on handle set returned: {ret:?}");
