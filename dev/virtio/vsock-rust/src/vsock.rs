@@ -653,9 +653,18 @@ where
                     c.peer,
                     c.local_port
                 );
-                device.connection_manager.lock().shutdown(c.peer, c.local_port)?;
-                device.vsock_connection_close(c, /* vsock_done */ false);
+                let res = device.connection_manager.lock().shutdown(c.peer, c.local_port);
+                if res.is_ok() {
+                    device.vsock_connection_close(c, /* vsock_done */ false);
+                } else {
+                    warn!(
+                        "failed to send shutdown command, connection removed? {}",
+                        res.unwrap_err()
+                    );
+                }
             }
+        } else {
+            warn!("got event for non-existent remote {}, was it closed?", href.id());
         }
         drop(guard);
         href.handle_decref();
