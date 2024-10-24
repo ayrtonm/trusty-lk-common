@@ -151,8 +151,21 @@ void register_int_handler(unsigned int vector, int_handler handler, void *arg)
         /*
          * Use lowest priority Linux does not mask to allow masking the entire
          * group while still allowing other interrupts to be delivered.
+	 * If we use a priority in the secure-only range, then the pending
+	 * secure interrupt will mask other Linux interrupts even though we
+	 * masked the group.
+	 *
+	 * Linux usually sets PMR to 0xf0 which gets converted to 0xf8 in
+	 * secure mode. In that case the lowest priority we can use is 0xf7.
+	 * If pseudo-nmi support is enabled in linux, the PMR value that Linux
+	 * uses during normal execution changes to 0xe0, which in turn gets
+	 * translated to 0xf0 in secure mode.
+	 *
+	 * We set all our priority to 0xef to work in both these modes (the
+	 * Linux trusty driver need to make sure the call to trusyt happens
+	 * with the normal PMR value though)
          */
-        arm_gic_set_priority_locked(vector, 0xf7);
+        arm_gic_set_priority_locked(vector, 0xef);
 #endif
 
         /*
