@@ -689,12 +689,13 @@ long smc_intc_get_next_irq(struct smc32_args *args)
     return ret;
 }
 
-void sm_intc_enable_interrupts(void)
+enum handler_return sm_intc_enable_interrupts(void)
 {
 #if ARM_GIC_USE_DOORBELL_NS_IRQ
     GICCREG_WRITE(0, icc_igrpen1_el1, 1); /* Enable secure Group 1 */
     DSB;
 #endif
+    return INT_NO_RESCHEDULE;
 }
 
 status_t sm_intc_fiq_enter(void)
