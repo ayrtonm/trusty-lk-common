@@ -7,7 +7,6 @@
 #![cfg_attr(not(version("1.77")), feature(c_str_literals))]
 
 mod err;
-mod hal;
 #[cfg(target_arch = "aarch64")]
 mod kvm;
 mod pci;
