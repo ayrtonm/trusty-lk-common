@@ -10,6 +10,7 @@ MODULE_EXPORT_INCLUDES += \
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/liballoc-rust \
 	trusty/user/base/lib/trusty-std \
+	$(call FIND_CRATE,cfg-if) \
 	$(call FIND_CRATE,lazy_static) \
 	$(call FIND_CRATE,log) \
 	$(call FIND_CRATE,num-integer) \
