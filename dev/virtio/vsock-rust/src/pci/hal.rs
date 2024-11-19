@@ -21,15 +21,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#[cfg(target_arch = "aarch64")]
-use alloc::collections::btree_map::BTreeMap;
-
-#[cfg(target_arch = "aarch64")]
-use core::ffi::c_void;
 use core::ops::Deref;
 use core::ops::DerefMut;
-#[cfg(target_arch = "aarch64")]
-use core::ptr::copy_nonoverlapping;
 use core::ptr::NonNull;
 
 use lazy_static::lazy_static;
@@ -53,10 +46,7 @@ use virtio_drivers::transport::pci::bus::PciRoot;
 use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
 
 use crate::err::Error;
-#[cfg(target_arch = "aarch64")]
-use crate::kvm::virtio_share_pages;
-#[cfg(target_arch = "aarch64")]
-use crate::kvm::virtio_unshare_pages;
+use crate::pci::arch;
 
 #[derive(Copy, Clone)]
 struct BarInfo {
@@ -68,11 +58,6 @@ struct BarInfo {
 const NUM_BARS: usize = 6;
 lazy_static! {
     static ref BARS: Mutex<[Option<BarInfo>; NUM_BARS]> = Mutex::new([None; NUM_BARS]);
-}
-
-#[cfg(target_arch = "aarch64")]
-lazy_static! {
-    static ref VADDRS: Mutex<BTreeMap<paddr_t, vaddr_t>> = Mutex::new(BTreeMap::new());
 }
 
 // virtio-drivers requires 4k pages, check that we meet requirement
@@ -167,33 +152,23 @@ unsafe impl Hal for TrustyHal {
         // Safety: `vaddr` is valid because the call to `vmm_alloc_continuous` succeeded
         let paddr = unsafe { vaddr_to_paddr(vaddr) };
 
-        // libhypervisor_backends is arm64-only for now
-        #[cfg(target_arch = "aarch64")]
-        {
-            // Store the paddr to vaddr mapping for use in unshare
-            if let Some(old_vaddr) = VADDRS.lock().deref_mut().insert(paddr, vaddr as usize) {
-                panic!("paddr ({:#x}) was already mapped to vaddr ({:#x})", paddr, old_vaddr);
-            }
-
-            virtio_share_pages(paddr, size).expect("failed to share pages");
-        }
+        arch::dma_alloc_share(paddr, size);
 
         (paddr, NonNull::<u8>::new(vaddr as *mut u8).unwrap())
     }
 
-    unsafe fn dma_dealloc(_paddr: PhysAddr, vaddr: NonNull<u8>, _pages: usize) -> i32 {
-        // TODO: store pointers allocated with dma_alloc to validate the args
-        let vaddr = vaddr.as_ptr();
-
-        // libhypervisor_backends is arm64-only for now
-        #[cfg(target_arch = "aarch64")]
-        {
-            let size = _pages * PAGE_SIZE;
-            virtio_unshare_pages(_paddr, size).unwrap();
-        }
+    // Safety: `vaddr` was returned by `dma_alloc` and hasn't been deallocated.
+    unsafe fn dma_dealloc(paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
+        let size = pages * PAGE_SIZE;
+        arch::dma_dealloc_unshare(paddr, size);
 
         let aspace = vmm_get_kernel_aspace();
-        vmm_free_region(aspace, vaddr as usize)
+        let vaddr = vaddr.as_ptr();
+        // Safety:
+        // - function-level requirements
+        // - `aspace` points to the kernel address space object
+        // - `vaddr` is a region in `aspace`
+        unsafe { vmm_free_region(aspace, vaddr as usize) }
     }
 
     // Only used for MMIO addresses within BARs read from the device,
@@ -210,89 +185,32 @@ unsafe impl Hal for TrustyHal {
                 if paddr + size > bar_paddr_end {
                     panic!("invalid arguments passed to mmio_phys_to_virt");
                 }
-                let offset: isize = (paddr - bar.paddr).try_into().unwrap();
+                let offset = paddr - bar.paddr;
 
                 let bar_vaddr_ptr: *mut u8 = bar.vaddr as _;
-                return NonNull::<u8>::new(bar_vaddr_ptr.offset(offset)).unwrap();
+                // Safety:
+                // - `BARS` correctly maps from physical to virtual pages
+                // - `offset` is less than or equal to bar.size because
+                //   `bar.paddr` <= `paddr`` < `bar_paddr_end`
+                let vaddr = unsafe { bar_vaddr_ptr.add(offset) };
+                return NonNull::<u8>::new(vaddr).unwrap();
             }
         }
 
         panic!("error mapping physical memory to virtual for mmio");
     }
 
-    // Safety: buffer must be a valid kernel virtual address for the duration of the call.
-    #[cfg(target_arch = "x86_64")]
-    unsafe fn share(buffer: NonNull<[u8]>, _direction: BufferDirection) -> PhysAddr {
-        // no-op on x86_64
-        vaddr_to_paddr(buffer.as_ptr().cast())
-    }
-
-    // Safety: no-op.
-    #[cfg(target_arch = "x86_64")]
-    unsafe fn unshare(_paddr: PhysAddr, _buffer: NonNull<[u8]>, _direction: BufferDirection) {}
-
-    // Safety: buffer must be a valid kernel virtual address that is not already mapped for DMA.
-    #[cfg(target_arch = "aarch64")]
+    // Safety: delegated to callee
     unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> PhysAddr {
-        let size = buffer.len();
-        let pages = to_pages(size);
-
-        let (paddr, vaddr) = Self::dma_alloc(pages, direction);
-        let dst_ptr = vaddr.as_ptr() as *mut c_void;
-
-        if direction != BufferDirection::DeviceToDriver {
-            let src_ptr = buffer.as_ptr() as *const u8 as *const c_void;
-            // Safety: Both regions are valid, properly aligned, and don't overlap.
-            // - Because `vaddr` is a virtual address returned by `dma_alloc`, it is
-            // properly aligned and does not overlap with `buffer`.
-            // - There are no particular alignment requirements on `buffer`.
-            unsafe { copy_nonoverlapping(src_ptr, dst_ptr, size) };
-        }
-
-        paddr
+        // Safety: delegated to arch::share
+        unsafe { arch::share(buffer, direction) }
     }
 
-    // Safety:
-    // - paddr is a valid physical address returned by call to `share`
-    // - buffer must be a valid kernel virtual address previously passed to `share` that
-    //   has not already been `unshare`d by this function.
-    #[cfg(target_arch = "aarch64")]
+    // Safety: delegated to callee
     unsafe fn unshare(paddr: PhysAddr, buffer: NonNull<[u8]>, direction: BufferDirection) {
-        let size = buffer.len();
-        let vaddr =
-            VADDRS.lock().deref_mut().remove(&paddr).expect("paddr was inserted by dma_alloc")
-                as *const c_void;
-
-        if direction != BufferDirection::DriverToDevice {
-            let dest = buffer.as_ptr() as *mut u8 as *mut c_void;
-            // Safety: Both regions are valid, properly aligned, and don't overlap.
-            // - Because `vaddr` was retrieved from `VADDRS`, it must have been returned
-            //   from the call to `dma_alloc` in `share`.
-            // - Because `vaddr` is a virtual address returned by `dma_alloc`, it is
-            //   properly aligned and does not overlap with `buffer`.
-            // - There are no particular alignment requirements on `buffer`.
-            unsafe { copy_nonoverlapping(vaddr, dest, size) };
+        // Safety: delegated to arch::unshare
+        unsafe {
+            arch::unshare(paddr, buffer, direction);
         }
-
-        let vaddr = NonNull::<u8>::new(vaddr as *mut u8).unwrap();
-        // Safety: memory was allocated by `share` and not previously `unshare`d.
-        Self::dma_dealloc(paddr, vaddr, to_pages(size));
     }
-
-    // Safety: unimplemented
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    unsafe fn share(_buffer: NonNull<[u8]>, _direction: BufferDirection) -> PhysAddr {
-        unimplemented!();
-    }
-
-    // Safety: unimplemented
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    unsafe fn unshare(_paddr: PhysAddr, _buffer: NonNull<[u8]>, _direction: BufferDirection) {
-        unimplemented!();
-    }
-}
-
-#[cfg(target_arch = "aarch64")]
-fn to_pages(size: usize) -> usize {
-    size.div_ceil(PAGE_SIZE)
 }

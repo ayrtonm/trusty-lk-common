@@ -54,7 +54,7 @@ fn get_granule() -> KvmResult<usize> {
     })
 }
 
-pub(crate) fn virtio_share_pages(paddr: usize, size: usize) -> KvmResult<()> {
+pub(crate) fn share_pages(paddr: usize, size: usize) -> KvmResult<()> {
     let hypervisor = get_mem_sharer()
         .ok_or(KvmError::NotSupported)
         .inspect_err(|_| error!("failed to get hypervisor"))?;
@@ -91,7 +91,7 @@ pub(crate) fn virtio_share_pages(paddr: usize, size: usize) -> KvmResult<()> {
     Ok(())
 }
 
-pub(crate) fn virtio_unshare_pages(paddr: usize, size: usize) -> KvmResult<()> {
+pub(crate) fn unshare_pages(paddr: usize, size: usize) -> KvmResult<()> {
     let hypervisor = get_mem_sharer()
         .ok_or(KvmError::NotSupported)
         .inspect_err(|_| error!("failed to get hypervisor"))?;
