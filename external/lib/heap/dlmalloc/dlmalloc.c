@@ -3584,6 +3584,9 @@ static void internal_malloc_stats(mstate m) {
     size_t maxfp = 0;
     size_t fp = 0;
     size_t used = 0;
+    size_t total_free = 0;
+    size_t max_free_chunk = 0;
+    size_t num_free_chunks = 0;
     check_malloc_state(m);
     if (is_initialized(m)) {
       msegmentptr s = &m->seg;
@@ -3595,17 +3598,38 @@ static void internal_malloc_stats(mstate m) {
         mchunkptr q = align_as_chunk(s->base);
         while (segment_holds(s, q) &&
                q != m->top && q->head != FENCEPOST_HEAD) {
-          if (!is_inuse(q))
-            used -= chunksize(q);
+          if (!is_inuse(q)) {
+            size_t csz = chunksize(q);
+            used -= csz;
+            total_free += csz;
+            num_free_chunks++;
+            if (csz > max_free_chunk)
+              max_free_chunk = csz;
+          }
           q = next_chunk(q);
         }
         s = s->next;
       }
+      /* include top chunk as free */
+      total_free += m->topsize;
+      num_free_chunks++;
+      if (m->topsize > max_free_chunk)
+        max_free_chunk = m->topsize;
     }
     POSTACTION(m); /* drop lock */
     fprintf(stderr, "max system bytes = %10lu\n", (unsigned long)(maxfp));
     fprintf(stderr, "system bytes     = %10lu\n", (unsigned long)(fp));
     fprintf(stderr, "in use bytes     = %10lu\n", (unsigned long)(used));
+#if defined(LK)
+    unsigned int frag_permille =
+        (total_free > 0)
+            ? (unsigned int)((1000 * (total_free - max_free_chunk)) / total_free)
+            : 0;
+    dprintf(INFO, "\ttotal free: 0x%zx, chunks: %zu, largest: 0x%zx, avg: 0x%zx\n",
+            total_free, num_free_chunks, max_free_chunk,
+            num_free_chunks > 0 ? total_free / num_free_chunks : 0);
+    dprintf(INFO, "\tfragmentation: %u.%u%%\n", frag_permille / 10, frag_permille % 10);
+#endif /* LK */
   }
 }
 #endif /* NO_MALLOC_STATS */
