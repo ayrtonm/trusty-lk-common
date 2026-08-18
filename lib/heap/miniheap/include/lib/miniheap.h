@@ -32,6 +32,9 @@ struct miniheap_stats {
     size_t heap_free;
     size_t heap_max_chunk;
     size_t heap_low_watermark;
+    size_t heap_num_free_chunks;
+    // (1 - largest_chunk / total_free) * 1000; 0 = unfragmented, 1000 = fully fragmented
+    unsigned int heap_fragmentation_permille;
 };
 
 void miniheap_get_stats(struct miniheap_stats *ptr);

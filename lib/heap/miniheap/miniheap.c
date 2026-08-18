@@ -96,10 +96,28 @@ void miniheap_dump(void)
 
     mutex_acquire(&theheap.lock);
 
+    size_t total_free = 0;
+    size_t max_chunk = 0;
+    size_t num_chunks = 0;
     struct free_heap_chunk *chunk;
     list_for_every_entry(&theheap.free_list, chunk, struct free_heap_chunk, node) {
         dump_free_chunk(chunk);
+        total_free += chunk->len;
+        num_chunks++;
+        if (chunk->len > max_chunk) {
+            max_chunk = chunk->len;
+        }
     }
+
+    unsigned int frag_permille =
+        (total_free > 0)
+            ? (unsigned int)((1000 * (total_free - max_chunk)) / total_free)
+            : 0;
+    dprintf(INFO, "\ttotal free: 0x%zx, chunks: %zu, largest: 0x%zx, avg: 0x%zx\n",
+            total_free, num_chunks, max_chunk,
+            num_chunks > 0 ? total_free / num_chunks : 0);
+    dprintf(INFO, "\tfragmentation: %u.%u%%\n", frag_permille / 10, frag_permille % 10);
+
     mutex_release(&theheap.lock);
 
 }
@@ -488,13 +506,15 @@ void miniheap_get_stats(struct miniheap_stats *ptr)
 
     ptr->heap_start = theheap.base;
     ptr->heap_len = theheap.len;
-    ptr->heap_free=0;
+    ptr->heap_free = 0;
     ptr->heap_max_chunk = 0;
+    ptr->heap_num_free_chunks = 0;
 
     mutex_acquire(&theheap.lock);
 
     list_for_every_entry(&theheap.free_list, chunk, struct free_heap_chunk, node) {
         ptr->heap_free += chunk->len;
+        ptr->heap_num_free_chunks++;
 
         if (chunk->len > ptr->heap_max_chunk) {
             ptr->heap_max_chunk = chunk->len;
@@ -502,6 +522,10 @@ void miniheap_get_stats(struct miniheap_stats *ptr)
     }
 
     ptr->heap_low_watermark = theheap.low_watermark;
+    ptr->heap_fragmentation_permille =
+        (ptr->heap_free > 0)
+            ? (unsigned int)((1000 * (ptr->heap_free - ptr->heap_max_chunk)) / ptr->heap_free)
+            : 0;
 
     mutex_release(&theheap.lock);
 }
